@@ -1,0 +1,27 @@
+=== INDUSTRIAL MECHANICAL SAFETY AND EMERGENCY PROCEDURES ===
+
+This safety standard document outlines the mandatory lockout/tagout (LOTO) procedures, Personal Protective Equipment (PPE) requirements, and emergency shutdown protocols for all industrial mechanical and electrical equipment.
+
+1. STANDARD LOCKOUT/TAGOUT (LOTO) PROCEDURES
+No employee is permitted to perform maintenance, cleaning, lubrication, or inspection on any machine until the system has been brought to a zero-energy state. The following sequence must be followed:
+- Preparation: Notify all affected operators that the machine is going down for maintenance. Identify all energy sources (electrical power, pneumatic pressure, hydraulic fluid, gravitational potential energy).
+- Shutdown: Shut down the machine using the standard operational controls on the interface panel.
+- Isolation: Open the main circuit breaker on the electrical control cabinet to cut off electrical power. Close all manual pneumatic and hydraulic valves.
+- Application of Locks and Tags: Apply a standardized red pad lock to the main electrical disconnect switch. Place a highly visible "DANGER: DO NOT OPERATE" tag on the lock. The tag must clearly list the technician's name, department, date, and reason for the lockout. Every technician working on the machine must apply their own personal padlock to the multi-lock hasp.
+- Release of Stored Energy: Bleed off air pressure from all pneumatic lines, relieve residual pressure from hydraulic cylinders, and lower any heavy suspended components to their baseline physical rest position to eliminate gravitational potential energy.
+- Verification: Attempt to start the machine using the standard operational controls to verify that it is completely de-energized. Verify zero voltage on the input terminals using a calibrated multimeter. Return all operational switches to the "OFF" position after verification.
+
+2. MANDATORY PERSONAL PROTECTIVE EQUIPMENT (PPE)
+Maintenance technicians must wear the following protective gear at all times while performing work on active mechanical systems:
+- Safety Glasses: High-impact protective glasses with permanent side shields are mandatory.
+- Steel-Toe Boots: Safety footwear rated for heavy crush protection.
+- High-Temperature Gloves: When performing inspections on motor housings or steam pipes, wear thermal-resistant leather gloves.
+- Arc Flash Protection: When working inside electrical enclosures (480V cabinets), wear an arc-flash rated face shield, high-voltage rubber gloves, and flame-resistant clothing.
+- No Loose Wearables: Wearing ties, loose-fitting sleeves, rings, watches, or unrestrained long hair near rotating couplings or motor shafts is strictly prohibited. Loose items can be easily caught by rotating shafts, leading to catastrophic injury.
+
+3. EMERGENCY SHUTDOWN STEPS
+If an operational emergency occurs (e.g. electrical arc, smoke, machine structural fracture, mechanical runaway):
+- Step 1: Immediately hit the nearest large red Emergency Stop (E-Stop) button. E-Stops are located on every operator station, the electrical cabinet door, and at 5-meter intervals along the main conveyor belt.
+- Step 2: Manually open the main electrical disconnect circuit breaker on the power wall to isolate the equipment from all external energy.
+- Step 3: Evacuate the immediate operational zone and establish a physical perimeter to prevent entry.
+- Step 4: Contact the central control room and notify the emergency response team. State your name, exact machine ID, and the nature of the emergency.
