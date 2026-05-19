@@ -5,7 +5,7 @@ import datetime
 import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
-from anthropic import Anthropic
+from groq import Groq
 
 # =================================================================
 # STEP 1 — Maintenance Documents Ingestion
@@ -182,16 +182,11 @@ def execute_rag_query(
     model, 
     index: faiss.Index, 
     chunks: list, 
-    anthropic_client: Anthropic,
+    groq_client: Groq,
     outputs_dir: str = "outputs",
     k: int = 3
 ):
-    """
-    Step 5 & Step 6: 
-    - Retrieve top k matching chunks using FAISS.
-    - Generate answer via Anthropic API (Claude-3-5-sonnet).
-    - Append detailed retrieval audit log to retrieved_chunks.log.
-    """
+    
     print(f"\n=================================================================")
     print(f"  PROCESSING QUERY: \"{query}\"")
     print(f"=================================================================")
@@ -236,30 +231,46 @@ Question: {query}
 
 Answer:"""
 
-    # 4. Generate Answer via Anthropic SDK
-    print("Calling Anthropic Claude API for Answer Generation...")
-    if anthropic_client.api_key == "dummy-key":
+    # 4. Generate Answer via Groq SDK
+    print("Calling Groq API for Answer Generation...")
+    if groq_client.api_key == "dummy-key":
         answer = (
-            "[MOCK LLM RESPONSE - NO ANTHROPIC API KEY SET]\n"
-            "To resolve, set your Anthropic API Key: export ANTHROPIC_API_KEY='your-key'\n"
+            "[MOCK LLM RESPONSE - NO GROQ API KEY SET]\n"
+            "To resolve, set your Groq API Key: export GROQ_API_KEY='your-key'\n"
             "Determined Grounding Context:\n"
             + "\n".join([f" - [{c['doc_name']} | Chunk {c['chunk_index']}]" for c in retrieved_chunks_list])
         )
     else:
         try:
-            message = anthropic_client.messages.create(
-                model="claude-3-5-sonnet-latest", # Claude 3.5 Sonnet
-                max_tokens=1000,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            answer = message.content[0].text
+            try:
+                response = groq_client.chat.completions.create(
+                    model="llama3-8b-8192",
+                    messages=[
+                        {"role": "system", "content": "You are a maintenance assistant. Answer the question using ONLY the context below. If the answer is not in the context, say \"I don't have enough information to answer this.\""},
+                        {"role": "user", "content": f"Context:\n{context_str.strip()}\n\nQuestion: {query}"}
+                    ],
+                    temperature=0.0
+                )
+                answer = response.choices[0].message.content
+            except Exception as e:
+                # Handle model decommissioning on Groq dynamically
+                if "decommissioned" in str(e) or "not found" in str(e) or "400" in str(e):
+                    response = groq_client.chat.completions.create(
+                        model="llama-3.1-8b-instant",
+                        messages=[
+                            {"role": "system", "content": "You are a maintenance assistant. Answer the question using ONLY the context below. If the answer is not in the context, say \"I don't have enough information to answer this.\""},
+                            {"role": "user", "content": f"Context:\n{context_str.strip()}\n\nQuestion: {query}"}
+                        ],
+                        temperature=0.0
+                    )
+                    answer = response.choices[0].message.content
+                else:
+                    raise e
         except Exception as e:
             answer = f"Error during generation: {e}"
             print(f"API Error: {e}")
         
-    print("\n--- CLAUDE GENERATED ANSWER ---")
+    print("\n--- GROQ GENERATED ANSWER ---")
     print(answer)
     print("-------------------------------------------------------------")
     
@@ -304,15 +315,15 @@ def main():
     # 4. Step 4 FAISS index build
     index = build_faiss_index(embeddings)
     
-    # Ensure Anthropic API Key is active
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    # Ensure Groq API Key is active
+    api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        print("\n[WARNING] ANTHROPIC_API_KEY environment variable is not set!")
-        print("Please export your API key: export ANTHROPIC_API_KEY='your-key'")
+        print("\n[WARNING] GROQ_API_KEY environment variable is not set!")
+        print("Please export your API key: export GROQ_API_KEY='your-key'")
         print("The pipeline will run local retrieval, but LLM generation will be skipped/mocked.")
         api_key = "dummy-key" # Avoid instantiation crash
         
-    anthropic_client = Anthropic(api_key=api_key)
+    groq_client = Groq(api_key=api_key)
     
     # 5. Run the 3 Demo Queries
     demo_queries = [
@@ -326,7 +337,7 @@ def main():
     print("=================================================================")
     
     for query in demo_queries:
-        execute_rag_query(query, model, index, chunks, anthropic_client, outputs_dir)
+        execute_rag_query(query, model, index, chunks, groq_client, outputs_dir)
         time.sleep(1) # Prevent rapid rate limits
 
 if __name__ == "__main__":
