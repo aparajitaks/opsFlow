@@ -14,7 +14,7 @@ def load_dataset() -> pd.DataFrame:
     Loads the AI4I 2020 Predictive Maintenance dataset from local CSV
     or falls back to KaggleHub download and saves a local copy.
     """
-    local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "ai4i2020.csv")
+    local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "data", "ai4i2020.csv")
     
     if os.path.exists(local_path):
         print(f"Loading local dataset from: {local_path} ...")
