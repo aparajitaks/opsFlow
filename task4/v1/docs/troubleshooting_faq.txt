@@ -1,0 +1,37 @@
+=== TECHNICAL TROUBLESHOOTING FAQ AND DIAGNOSTIC GUIDE ===
+
+This troubleshooting guide provides the common mechanical/electrical failure symptoms, detailed diagnostic steps, and error codes for high-capacity industrial motor systems.
+
+1. COMMON FAILURE SYMPTOMS AND DIAGNOSTIC STEPS
+- Symptom: Motor Overheating (Excessive Winding/Housing Temperature)
+  * Step 1: Check if the cooling fan is running and verify that the ventilation shrouds are completely free of dust, paper, or grease blockages. Clean immediately.
+  * Step 2: Measure current draw on all three phases. An unbalanced current draw indicates potential winding short-circuits or single-phase input loss.
+  * Step 3: Check bearing housing temperatures. Dry or damaged bearings will generate localized heat that conducts into the motor housing.
+  * Step 4: Verify the mechanical load is not exceeding the nominal torque limit. Reduce load if necessary.
+
+- Symptom: High Mechanical Vibration and Audible Squealing
+  * Step 1: Use a handheld vibration pen or accelerometer to measure velocity and displacement on the bearing housings in three directions (axial, radial horizontal, and radial vertical).
+  * Step 2: Inspect coupling alignment. Misalignment is the primary cause of high axial vibrations.
+  * Step 3: Check for structural "soft foot." Loose mounting bolts cause resonant structural vibrations. Tighten all bolts using a calibrated torque wrench.
+  * Step 4: Stop the motor and check for rotor eccentricity or shaft deformation using a dial indicator.
+
+- Symptom: Failure to Start (Motor Hum but No Rotation)
+  * Step 1: Immediately disconnect power to prevent locked-rotor overheating.
+  * Step 2: Attempt to rotate the motor shaft manually (ensure safety lockout tagout is active). If the shaft is completely frozen, the bearings have seized or the load is jammed.
+  * Step 3: Measure winding resistance using a megohmmeter (megger) to check for grounded or shorted windings.
+  * Step 4: Inspect the contactors and check for blown input fuses.
+
+2. DIAGNOSTIC SYSTEM ERROR CODES
+The electronic motor controller logs specific error codes on the system interface screen:
+- ERROR CODE: ERR-101 (High Winding Temperature Warning)
+  * Description: Internal winding sensors registered a temperature exceeding 125 degrees Celsius.
+  * Action: Reduce the mechanical load immediately and check air flow. Do not shut off the motor immediately if running unloaded can help cool it down rapidly.
+- ERROR CODE: ERR-102 (Thermal Overload Shutdown)
+  * Description: Winding temperature exceeded the critical safety limit of 140 degrees Celsius. The system has automatically tripped the power relay.
+  * Action: Lock out the system, allow it to cool down completely, check cooling systems, and perform thermal imaging before attempting a restart.
+- ERROR CODE: ERR-201 (Overcurrent Spike / Locked Rotor)
+  * Description: Current draw spiked above the safe threshold due to zero-speed mechanical jam or phase short.
+  * Action: Perform physical inspection of the drive train, check for bearing seizure, and test electrical winding insulation.
+- ERROR CODE: ERR-301 (Vibration Boundary Exceeded)
+  * Description: Accelerometers registered vibration velocity exceeding 7.1 mm/s RMS.
+  * Action: Verify mounting bolt torque and inspect coupling alignments.
