@@ -81,7 +81,7 @@ def run_v2_rag_orchestrator():
         answer = generate_answer(query, retrieved)
         log_query(query, retrieved, answer, log_path)
         print_sources_to_terminal(query, retrieved, answer)
-        time.sleep(1)
+        time.sleep(3)
         
     # 4. Interactive CLI Loop
     print("\n=================================================================")
