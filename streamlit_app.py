@@ -182,38 +182,25 @@ if "messages" not in st.session_state:
 # 2. Sidebar Implementation
 # ----------------------------------------------------
 with st.sidebar:
-    st.markdown('<div class="sidebar-header">🔧 opsFlow RAG v3</div>', unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="sidebar-stat"><b>Model:</b> llama3-8b-8192</div>
-        <div class="sidebar-stat"><b>Embedder:</b> all-MiniLM-L6-v2</div>
-        <div class="sidebar-stat"><b>Reranker:</b> ms-marco-MiniLM-L-6-v2</div>
-        <div class="sidebar-stat"><b>Vector Store:</b> ChromaDB</div>
-        <div class="sidebar-stat"><b>Retrieval:</b> Hybrid (BM25 + Semantic)</div>
-        """,
-        unsafe_allow_html=True
-    )
-    
-    st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-header">📦 Telemetry Stats</div>', unsafe_allow_html=True)
-    st.markdown(
-        f"""
-        <div class="sidebar-stat"><b>Documents Loaded:</b> 6</div>
-        <div class="sidebar-stat"><b>Chunks Indexed:</b> 11</div>
-        """,
-        unsafe_allow_html=True
-    )
-    
-    st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-header">🔑 API Configuration</div>', unsafe_allow_html=True)
+    st.markdown("### opsFlow RAG v3")
+    st.divider()
+    st.write("Model: llama3-8b-8192")
+    st.write("Embedder: all-MiniLM-L6-v2")
+    st.write("Reranker: ms-marco-MiniLM-L-6-v2")
+    st.write("Vector Store: ChromaDB")
+    st.write("Retrieval: Hybrid (BM25 + Semantic)")
+    st.divider()
+    st.write("Documents loaded: 6")
+    st.write("Chunks indexed: 11")
+    st.divider()
     
     api_key_set = bool(os.environ.get("GROQ_API_KEY"))
     if api_key_set:
-        st.markdown('<div class="sidebar-stat"><b>GROQ_API_KEY:</b> <span style="color:#10B981">✅ Set</span></div>', unsafe_allow_html=True)
+        st.write("GROQ_API_KEY: ✅ Set")
     else:
-        st.markdown('<div class="sidebar-stat"><b>GROQ_API_KEY:</b> <span style="color:#EF4444">❌ Not Set</span></div>', unsafe_allow_html=True)
+        st.write("GROQ_API_KEY: ❌ Not Set")
         
-    st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
+    st.divider()
     if st.button("🧹 Clear Chat History", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
@@ -249,10 +236,12 @@ for msg in st.session_state.messages:
             with st.expander("📚 View Sources"):
                 for idx, src in enumerate(msg["sources"]):
                     preview = src["text"].replace("\n", " ")[:160] + "..."
+                    # Show literal line as requested
+                    st.write(f"Chunk {idx+1} | {src['doc_name']} | Words {src['start_word']}–{src['end_word']} | Score: {src['score']:.2f}")
+                    # Show glassmorphism card preview
                     st.markdown(
                         f"""
-                        <div class="source-card">
-                            <div class="source-meta">Chunk {idx+1} | {src['doc_name']} | Words {src['start_word']}–{src['end_word']} | Score: {src['score']:.4f}</div>
+                        <div class="source-card" style="margin-top: -10px; margin-bottom: 15px;">
                             <div class="source-preview">{preview}</div>
                         </div>
                         """,
@@ -266,11 +255,13 @@ for msg in st.session_state.messages:
                 verdict = faith.get("verdict", "")
                 
                 if faith.get("faithful"):
-                    st.success(f"✅ **Faithful ({score:.2f})** — {verdict}")
+                    st.success(f"✅ Faithful ({score:.2f})")
+                    st.markdown(f'"{verdict}"')
                 else:
-                    st.error(f"❌ **Not Faithful ({score:.2f})** — {verdict}")
+                    st.error(f"❌ Not Faithful ({score:.2f})")
+                    st.markdown(f'"{verdict}"')
                     if faith.get("unsupported_claims"):
-                        st.markdown("**Unsupported Claims identified:**")
+                        st.markdown("**Unsupported Claims:**")
                         for claim in faith["unsupported_claims"]:
                             st.markdown(f"- *{claim}*")
 
