@@ -54,12 +54,31 @@ def chunk_documents(docs_dir: str, chunk_size: int = 300):
     print("=================================================================")
     
     chunks = []
-    filenames = sorted([f for f in os.listdir(docs_dir) if f.endswith('.txt')])
+    filenames = sorted([f for f in os.listdir(docs_dir) if f.endswith('.txt') or f.endswith('.json')])
     
     for filename in filenames:
         file_path = os.path.join(docs_dir, filename)
-        with open(file_path, 'r', encoding='utf-8') as f:
-            text = f.read()
+        if filename.endswith('.json'):
+            import json
+            try:
+                with open(file_path, 'r', encoding='utf-8') as jf:
+                    data = json.load(jf)
+                text = (
+                    f"Machine Learning Model Summary and Training Results:\n"
+                    f"Training Timestamp: {data.get('run_timestamp')}\n"
+                    f"Best Performing Model: The best performing model is the {data.get('best_model')}.\n"
+                    f"Best F1 Score: The best F1 score achieved by the model is {data.get('best_f1')}.\n"
+                    f"Best ROC-AUC Score: The best ROC-AUC score is {data.get('best_roc_auc')}.\n"
+                    f"Best Model Hyperparameters: The best hyperparameters for the model are {data.get('best_params')}.\n"
+                    f"Top Features for Failure Prediction: The top 3 most important features for predicting equipment failure are {', '.join(data.get('top_features', []))}.\n"
+                    f"Dataset Failure Rate: The failure rate in the predictive maintenance dataset is {data.get('failure_rate_in_dataset') * 100:.1f}% (or {data.get('failure_rate_in_dataset')}).\n"
+                )
+            except Exception as e:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+        else:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text = f.read()
             
         words = text.split()
         doc_words = len(words)

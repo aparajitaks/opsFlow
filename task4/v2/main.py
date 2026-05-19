@@ -68,11 +68,9 @@ def run_v2_rag_orchestrator():
     print("Maintenance RAG Assistant v2")
     print("Type your question and press Enter. Type 'quit' or 'exit' to exit.\n")
     
-    # If standard input is terminal-based or standard zsh shell, execute loop
-    # We add a check for non-interactive execution (e.g., automated script testing)
-    # to avoid blocking if stdin is not connected to a terminal.
-    if sys.stdin.isatty():
-        try:
+    # We support both interactive keyboard prompts and standard piped streams for easy automated verification
+    try:
+        if sys.stdin.isatty():
             while True:
                 query = input("Your question: ").strip()
                 if query.lower() in ['quit', 'exit', 'q']:
@@ -85,10 +83,22 @@ def run_v2_rag_orchestrator():
                 answer = generate_answer(query, retrieved)
                 log_query(query, retrieved, answer, log_path)
                 print_sources_to_terminal(query, retrieved, answer)
-        except KeyboardInterrupt:
-            print("\nExiting RAG v2 Assistant. Goodbye!")
-    else:
-        print("[System Note] Non-interactive shell detected. Skipping live input loop.")
+        else:
+            print("[System Note] Piped standard input channel detected. Processing queries:")
+            for line in sys.stdin:
+                query = line.strip()
+                if not query:
+                    continue
+                if query.lower() in ['quit', 'exit', 'q']:
+                    print("Exiting RAG v2 Assistant. Goodbye!")
+                    break
+                print(f"\nProcessing Piped Query: {query}")
+                retrieved = retrieve(query, embedder, collection, k=3)
+                answer = generate_answer(query, retrieved)
+                log_query(query, retrieved, answer, log_path)
+                print_sources_to_terminal(query, retrieved, answer)
+    except KeyboardInterrupt:
+        print("\nExiting RAG v2 Assistant. Goodbye!")
 
 if __name__ == "__main__":
     run_v2_rag_orchestrator()

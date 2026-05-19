@@ -118,6 +118,33 @@ def run_v3_pipeline():
         print(f" - {lr_model_path}")
         print(f" - {rf_model_path}")
         
+        # Create model_summary.json detailing Task 3 training metrics
+        import json
+        import datetime
+        
+        feature_names = X_train.columns.tolist()
+        importances = best_rf_model.feature_importances_
+        indices = np.argsort(importances)[::-1]
+        top_features = [feature_names[idx] for idx in indices[:3]]
+        
+        # Calculate machine failure rate in raw dataset
+        failure_rate = float(raw_df['Machine failure'].mean())
+        
+        summary_data = {
+            "run_timestamp": datetime.datetime.now().isoformat(),
+            "best_model": "Random Forest",
+            "best_f1": round(float(best_rf_score), 4),
+            "best_roc_auc": round(float(np.mean(rf_cv['roc_auc'])), 4),
+            "best_params": {k: int(v) if isinstance(v, (np.integer, int)) else v for k, v in best_rf_params.items()},
+            "top_features": top_features,
+            "failure_rate_in_dataset": round(failure_rate, 4)
+        }
+        
+        summary_path = os.path.join(os.path.dirname(__file__), "outputs", "model_summary.json")
+        with open(summary_path, 'w', encoding='utf-8') as sf:
+            json.dump(summary_data, sf, indent=2)
+        print(f"Saved model summary JSON to: {summary_path}")
+        
         # 12. MLflow Logs
         print("\nLogging parameters, metrics, and tags to MLflow...")
         

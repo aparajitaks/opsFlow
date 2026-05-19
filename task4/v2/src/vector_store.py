@@ -18,12 +18,15 @@ def build_or_load_store(chunks: list[dict], embedder, persist_dir: str) -> chrom
     try:
         # Check if the collection already exists and has documents
         collection = client.get_collection(name=collection_name)
-        if collection.count() > 0:
+        if collection.count() > 0 and collection.count() == len(chunks):
             print(f"\n[ChromaDB] Collection '{collection_name}' successfully loaded from disk.")
             print(f"[ChromaDB] Total archived chunks: {collection.count()}")
             loaded_from_disk = True
         else:
-            print(f"\n[ChromaDB] Collection '{collection_name}' is empty. Initiating fresh build...")
+            if collection.count() > 0:
+                print(f"\n[ChromaDB] Collection count mismatch ({collection.count()} vs {len(chunks)} chunks). Rebuilding database for fresh updates...")
+                client.delete_collection(name=collection_name)
+            collection = client.create_collection(name=collection_name)
             loaded_from_disk = False
     except Exception:
         # Collection does not exist at all
