@@ -1,265 +1,215 @@
-# Industrial Operations Flow (opsFlow): ML Pipelines & RAG Assistants
+# opsFlow: AI-Powered Industrial Maintenance Intelligence System
 
-Welcome to **opsFlow**, a unified enterprise intelligence system for predictive mechanical engineering, industrial safety orchestration, and technical operations support. This project combines two core AI capabilities:
+Welcome to **opsFlow**, an integrated enterprise intelligence system designed for predictive mechanical telemetry and automated operations support in manufacturing environments.
 
-1. **Task 3 — Equipment Failure Prediction (ML):** A multi-stage Machine Learning pipeline utilizing the **AI4I 2020 Predictive Maintenance Dataset** to preemptively flag structural, thermal, and mechanical breakdowns.
-2. **Task 4 — Retrieval-Based AI Assistant (RAG):** A zero-dependency semantic Retrieval-Augmented Generation assistant upgraded to a premium production-grade pipeline (**v3**) featuring **Hybrid Search (BM25 + Semantic)**, **Reciprocal Rank Fusion (RRF)**, **Cross-Encoder Re-Ranking**, and **Faithfulness Auditing**.
+## 1. Project Overview
+
+opsFlow is a unified industrial maintenance intelligence platform that combines predictive machinery diagnostics with grounded technical knowledge retrieval. The system employs high-fidelity machine learning to forecast mechanical breakdowns before they happen, while deploying a cognitive retrieval assistant to guide on-site engineers through safety, diagnostics, and repairs.
+
+Task 3 and Task 4 are directly integrated: Task 3 trains production predictive maintenance models and serializes the performance stats, hyperparameter states, and explainability metrics into a centralized database file named `model_summary.json`. Task 4's Retrieval-Augmented Generation (RAG) pipeline ingests this structured dataset as part of its technical knowledge base, allowing operators to query live ML model accuracy, precision, F1-scores, and diagnostic results conversationally.
 
 ---
 
-## 1. System Architecture
-
-The opsFlow system integrates predictive telemetry analysis directly with semantic knowledge retrieval. The ML pipeline writes live metrics and model parameters to a shared knowledge layer, which the RAG assistant automatically ingests to answer questions about ML performance:
+## 2. Architecture Diagram (ASCII)
 
 ```text
-  +--------------------------------------------------------------------------------+
-  |                                   opsFlow System                               |
-  +--------------------------------------------------------------------------------+
-                                                                                    
-     +-----------------------------+               +----------------------------+   
-     |  Task 3: Failure telemetry  |               |  Task 4: Technical Manuals  |   
-     |  (AI4I 2020 Sensor Stream)  |               |    (LOTO, PPE, FAQ, Guide) |   
-     +--------------+--------------+               +--------------+-------------+   
-                    |                                             |                 
-                    v                                             |                 
-     +--------------+--------------+                              |                 
-     |  GridSearchCV Model Tuning  |                              |                 
-     +--------------+--------------+                              |                 
-                    |                                             |                 
-                    v (Generates Model Stats)                     v                 
-     +--------------+--------------+               +--------------+-------------+   
-     |     model_summary.json      | ------------> |    Shared Knowledge Base   |   
-     |   (Best Params, Features)   |               |   (Ingested as a Document) |   
-     +-----------------------------+               +--------------+-------------+   
-                                                                  |                 
-                                                                  v                 
-                                                   +--------------+-------------+   
-                                                   | Hybrid Search (ChromaDB +  |   
-                                                   |  rank-bm25 with RRF Fusion)|   
-                                                   +--------------+-------------+   
-                                                                  |                 
-                                                                  v                 
-                                                   +--------------+-------------+   
-                                                   |  Cross-Encoder Re-Ranking  |   
-                                                   | (MiniLM-L-6-v2 Top 10->3)  |   
-                                                   +--------------+-------------+   
-                                                                  |                 
-                                                                  v                 
-                                                   +--------------+-------------+   
-                                                   |      Grounded Generator     |   
-                                                   |   (Groq Llama-3-8B LPU)    |   
-                                                   +--------------+-------------+   
-                                                                  |                 
-                                                                  v                 
-                                                   +--------------+-------------+   
-                                                   |  Faithfulness Auditor LLM  |   
-                                                   | (Claims Verification Pass) |   
-                                                   +--------------+-------------+   
-                                                                  |                 
-                                                                  v                 
-                                                   +--------------+-------------+   
-                                                   |  Interactive Terminal CLI  |   
-                                                   +----------------------------+   
+AI4I 2020 Dataset
+      │
+      ▼
+┌─────────────────────────────────────┐
+│         TASK 3: ML PIPELINE         │
+│  v1 → v2 → v3 (production)          │
+│  Logistic Regression + Random Forest│
+│  SMOTE │ GridSearchCV │ SHAP │ MLflow│
+└──────────────┬──────────────────────┘
+               │ model_summary.json
+               ▼
+┌─────────────────────────────────────┐
+│       TASK 4: RAG ASSISTANT         │
+│  v1 → v2 → v3 (production)          │
+│  BM25 + Semantic │ Re-ranking       │
+│  ChromaDB │ Faithfulness Check      │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+        Maintenance Q&A
+   grounded in docs + ML results
 ```
 
 ---
 
-## 2. Central Local Setup and Environment Guide
+## 3. Repository Structure
 
-opsFlow runs inside a single, unified Python virtual environment.
+```text
+opsFlow/
+├── task3/
+│   ├── v1/         # Baseline: LR + RF, basic metrics
+│   ├── v2/         # + Feature engineering, SMOTE, CV, modular code
+│   ├── v3/         # + MLflow, GridSearchCV, SHAP, serialisation, Docker
+│   └── data/
+│       └── ai4i2020.csv
+├── task4/
+│   ├── v1/         # Baseline: FAISS, fixed chunking, Groq generation
+│   ├── v2/         # + ChromaDB, overlap chunking, grounding, CLI loop
+│   ├── v3/         # + Hybrid search, re-ranking, faithfulness check
+│   └── (docs in each version folder)
+├── run_all.py      # Single entry point: runs Task 3 v3 → Task 4 v3
+├── README.md
+└── requirements.txt
+```
 
-### Step 1: Create a Virtual Environment
-Navigate to the project root and create a sandboxed virtual environment:
+---
+
+## 4. Versioning Strategy
+
+This project follows an iterative versioning methodology, moving systematically from standard baseline models (v1) through robust feature-engineered codebases (v2) up to enterprise-grade production architectures (v3) for both predictive modeling and information retrieval tasks.
+
+### Task 3: Equipment Failure Prediction
+- **v1**: Load dataset, encode features, drop data leakage columns, train LR + RF, evaluate with ROC-AUC and confusion matrix, overfitting analysis.
+- **v2**: Engineered features (`temp_diff`, `power`, `wear_torque_ratio`), SMOTE for class imbalance, 5-fold stratified CV, feature importance and PR curve plots, modular `.py` structure.
+- **v3**: MLflow experiment tracking, GridSearchCV hyperparameter tuning, SHAP explainability (beeswarm + force plots), joblib model serialisation, `load_and_predict()` demo, Dockerfile.
+
+### Task 4: Retrieval-Based AI Assistant
+- **v1**: Fixed-size chunking, sentence-transformers embeddings, FAISS vector store, Groq LLM generation, chunk source logging.
+- **v2**: Overlap chunking (300 words, 50 overlap), persistent ChromaDB, strict grounding prompt, rich source logging, multi-query CLI loop.
+- **v3**: BM25 keyword index, hybrid retrieval with RRF fusion, cross-encoder re-ranking, faithfulness audit via second Groq call, extended logging.
+
+---
+
+## 5. Setup Instructions
+
 ```bash
-# Navigate to project root
-cd /Users/galaxy_grid/Desktop/opsFlow
+# Clone and enter project
+git clone <repo-url>
+cd opsFlow
 
-# Create virtual environment
+# Create and activate virtual environment
 python3 -m venv venv
-```
+source venv/bin/activate          # Mac/Linux
+# venv\Scripts\activate           # Windows
 
-### Step 2: Activate the Virtual Environment
-Activate the environment before executing any commands or scripts:
-* **macOS / Linux:**
-  ```bash
-  source venv/bin/activate
-  ```
-* **Windows:**
-  ```cmd
-  venv\Scripts\activate
-  ```
-
-### Step 3: Install Core Dependencies
-Install the required packages listed in the consolidated requirements file:
-```bash
+# Install all dependencies
 pip install -r requirements.txt
+
+# Set Groq API key (required for Task 4)
+export GROQ_API_KEY='your-key-here'
+# Get free key at: https://console.groq.com
 ```
 
-### Step 4: Export Groq API Key
-Set your active API credentials in the terminal shell (do not write them to file):
-```bash
-export GROQ_API_KEY="your-groq-api-key"
+### Dataset Note
+```text
+Task 3 uses the AI4I 2020 Predictive Maintenance dataset.
+Place it at: task3/data/ai4i2020.csv
+Download from: https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset
 ```
 
 ---
 
-## 3. How to Run: Unified Entry Point
+## 6. How to Run
 
-To execute both tasks in sequence as a single integrated ecosystem, run `run_all.py` at the root of the workspace:
-
+### Option A — Full pipeline (recommended)
+Execute both tasks sequentially with dynamic model-to-assistant knowledge transfer using a single command:
 ```bash
+# From opsFlow/ root
 python run_all.py
+# Runs Task 3 v3 → copies model_summary.json → runs Task 4 v3
 ```
 
-### Unified Runner Logic (`run_all.py`):
-1. **Task 3 execution:** Runs the production ML tuning pipeline `task3/v3/main.py` inside a subprocess, creating local SHAP plots, logging parameter metrics to MLflow, serializing models, and dumping `model_summary.json`.
-2. **Knowledge Transfer:** Copies the model summary JSON directly into the Task 4 RAG knowledge folder (`task4/v3/docs/model_summary.json`, `task4/v2/docs/model_summary.json` and `task4/v1/docs/model_summary.json`).
-3. **Task 4 execution:** Launches the new hybrid `task4/v3/main.py` inside a subprocess, which loads embeddings and cross-encoders, constructs the local BM25 index, rebuilds ChromaDB dynamically upon count mismatches, runs the full hybrid RRF search suite, audits output claims for faithfulness, and enters the terminal console loop.
-
----
-
-## 4. Task 3 — Equipment Failure ML Pipeline
-
-Task 3 predicts machinery failures. It is divided into three sequential versions:
-
-### version v1: Sequential ML Stages
-Runs individual scripts to demonstrate model pipeline stages:
-* **stage2_preprocessing.py:** Prepares data and drops index/ID features.
-* **stage4_model_training.py:** Fits standard Logistic Regression & Random Forest classifiers.
-* **stage5_model_evaluation.py:** Calculates metrics, confusion matrices, and ROC-AUC curves.
-* **stage6_overfitting_analysis.py:** Identifies optimization gaps (train vs. test scores).
-
+### Option B — Run each task individually
+Step into specific version workspaces to evaluate performance stages:
 ```bash
-# Run v1 steps sequentially
-python task3/v1/explore_predictive_maintenance.py
-python task3/v1/stage2_preprocessing.py
-python task3/v1/stage4_model_training.py
-python task3/v1/stage5_model_evaluation.py
-python task3/v1/stage6_overfitting_analysis.py
+# Task 3
+cd task3/v1 && python stage2_preprocessing.py   # baseline preprocessing
+cd task3/v2 && python main.py                    # feature engineering + CV
+cd task3/v3 && python main.py                    # full production pipeline
+
+# Task 4
+cd task4/v1 && python rag_pipeline.py            # baseline RAG
+cd task4/v2 && python main.py                    # persistent store + CLI
+cd task4/v2 && python main.py                    # persistent store + CLI
+cd task4/v3 && python main.py                    # hybrid search + faithfulness
 ```
 
-### version v2: Modular Class Balancing & Feature Engineering
-Adds engineered telemetry features (`temp_diff`, `power`, `wear_torque_ratio`) and balances minority classes using SMOTE.
+### Option C — Docker (Task 3 v3 only)
+Package and run the production predictive pipeline inside an isolated container:
 ```bash
-# Run modular v2 pipeline
-python task3/v2/main.py
-```
-
-### version v3: Production-Grade ML, MLflow, and SHAP Explainability
-Utilizes `GridSearchCV` for hyperparameter optimization, logs parameters in MLflow, generates SHAP feature explanations, and exports pickled estimators for inference.
-```bash
-# Run v3 locally
 cd task3/v3
-python main.py
-
-# Launch MLflow Dashboard
-mlflow ui
+docker build -t task3-v3 .
+docker run -v $(pwd)/../data:/app/data task3-v3
 ```
 
 ---
 
-## 5. Task 4 — Retrieval-Based AI Assistant (RAG)
+## 7. Sample Output
 
-Task 4 builds a cognitive assistant to answer maintenance questions.
-
-### version v1: FAISS & Groq API Pipeline
-Uses word-based chunking (300 words, no overlap), `sentence-transformers` embeddings, and a FAISS index to retrieval-ground the **Groq API** completions.
-```bash
-cd task4/v1
-python rag_pipeline.py
-```
-
-### version v2: Persistent ChromaDB & Groq Assistant
-An advanced assistant utilizing sliding-window overlap chunking (300/50 split), a persistent SQLite-backed **ChromaDB** store, deterministic Groq completions, dynamic decommissioning fallback, and an interactive keyboard console.
-```bash
-cd task4/v2
-python main.py
-```
-
-### version v3: Hybrid Search, Re-Ranking, and Faithfulness Auditing
-A production-grade, premium RAG pipeline introducing key architectural layers:
-1. **Hybrid Retrieval (BM25 + Semantic):** Searches dense embeddings (ChromaDB) and whitespace-tokenized keyword indices (rank-bm25) in parallel.
-2. **Reciprocal Rank Fusion (RRF):** Fuses ordinal rankings using dampening constant $k=60$ to resolve uncalibrated dense/lexical score ranges.
-3. **Cross-Encoder Re-Ranking:** Scores top 10 fused candidates down to top 3 using a local `ms-marco-MiniLM-L-6-v2` transformer for deep token cross-attention.
-4. **Faithfulness Auditor:** Executes a second-pass Groq claim auditor verifying generated answers strictly against context, flagging out-of-scope hallucinations.
-
-```bash
-cd task4/v3
-python main.py
-```
-
----
-
-## 6. Sample Terminal Outputs
-
-### Task 3 ML Pipeline Execution:
+### Task 3 v3 Key Outputs
 ```text
-=================================================================
-      TASK 3 — EQUIPMENT FAILURE PREDICTION: V3 PIPELINE        
-=================================================================
-MLflow Active Run ID: 4a2b978d38e24c5598fb87a98ce112bc
-Saved StandardScaler to: outputs/models/scaler_v3.pkl
-Training SMOTE Random Forest with Best Hyperparameters...
-Saved best tuned models to outputs/models/:
- - outputs/models/logistic_regression_v3.pkl
- - outputs/models/random_forest_v3.pkl
-Saved model summary JSON to: outputs/model_summary.json
-Logging parameters, metrics, and tags to MLflow...
-
-[Random Forest Prediction Result]
-Predicted Class:            0 (No Failure)
-Failure State Probability:  0.0125
+Logistic Regression Best Parameters: {'C': 1, 'solver': 'lbfgs'}
+Random Forest Best Parameters: {'max_depth': None, 'min_samples_leaf': 1, 'n_estimators': 100}
+Random Forest Best CV F1 Score: 0.8094
+Tuned Random Forest AP: 0.8512
+MLflow Run ID: 5d29d5924ac54a368eb52a0956af5742
 ```
 
-### Task 4 v3 RAG Assistant Execution:
+### Integration Output
 ```text
-=================================================================
-      TASK 4 — RETRIEVAL-BASED AI ASSISTANT (RAG): V3            
-=================================================================
-[Step 1] Overlap Chunking Complete. Total Chunks Created: 11
-[Step 2] Loading local SentenceTransformer embedder...
-[ChromaDB] Collection 'maintenance_kb' successfully loaded from disk.
-[Step 3] Building local BM25 Keyword Index...
-[Step 4] Loading local Cross-Encoder re-ranker...
+[INTEGRATION] Copied model_summary.json → task4/v2/docs/
+[INTEGRATION] Copied model_summary.json → task4/v3/docs/
+```
 
-=================================================================
-      RUNNING MANDATORY RAG V3 DEMO QUERIES                      
-=================================================================
-
-==============================================================
-QUERY: What error code is logged when winding temperature exceeds 125 degrees?
-==============================================================
-[Hybrid Retrieval Fusion Breakdown]
- - Semantic Search Only retrieved: 'safety_procedures.txt' (Chunk 8)
- - BM25 Keyword Search Only retrieved: 'preventive_maintenance.txt' (Chunk 3)
- - Retrieved by BOTH (Intersection):  'maintenance_guide.txt' (Chunk 0)
-
-[Cross-Encoder Re-Ranking Position Shifts]
- • 'maintenance_guide.txt' (Chunk 0) stayed at rank 1 (RE-RANKED TOP 3)
- • 'preventive_maintenance.txt' (Chunk 3) moved from rank 4 → rank 2 (RE-RANKED TOP 3)
-
-Generated Grounded Answer:
-When winding temperature exceeds 125 degrees Celsius, the system logs error code ERR-101.
-
+### Task 4 v3 Key Outputs
+```text
+[Hybrid] RRF scores computed for 10 candidates
+[Reranker] Chunk from equipment_manual.txt moved rank 7 → rank 1
+Generated Grounded Answer: ...
 Faithfulness Check:
   Faithful : Yes
   Score    : 1.00
-  Verdict  : The claim regarding winding temperature and error code ERR-101 is directly supported by the maintenance guide.
+  Verdict  : All claims are directly supported by the maintenance manual.
 ```
 
 ---
 
-## 7. Assumptions, Trade-offs, & Production Improvements
+## 8. Key Design Decisions & Assumptions
 
-### Assumptions:
-1. **Model Evaluation Metrics:** F1-score is prioritized over absolute Accuracy due to the severe (3.39%) class imbalance.
-2. **Grounding Fallback Threshold:** Factual verification is checked via second-pass LLM claim analysis rather than raw distance boundaries, catching out-of-scope answers.
+- **Sub-Failure Column Removal (Data Leakage):** The columns `TWF`, `HDF`, `PWF`, `OSF`, and `RNF` specify exact failure modes which are logical components of the target variable `Machine failure`. Retaining them triggers total target leakage, leading to artificially perfect training metrics that fail completely during live inference. 
+- **SMOTE Boundary Restrictions:** Oversampling with SMOTE is strictly constrained to the training splits, leaving test/validation splits completely untouched. Applying SMOTE before splitting or to test sets leaks synthetic coordinates into test bounds, causing severely inflated, unrealistic model evaluations.
+- **Precision-Recall Curve over ROC-AUC:** Given the extreme class imbalance in machinery failures (only 3.39% representation), ROC-AUC yields over-optimistic evaluations by using False Positive Rates dominated by the massive negative class. Precision-Recall curves capture exact model performance differences on minority failure instances.
+- **BM25 + Semantic Hybrid Search Synergy:** Lexical BM25 search excels at exact-match keyword indexing (such as error codes, technical IDs, or specific model parameters), while semantic vector space search captures abstract conceptual questions. Fusing them with RRF leverages both advantages.
+- **Post-Retrieval Cross-Encoder Re-Ranking:** Bi-encoders process queries and documents independently to scale retrieval rapidly. The computationally heavy cross-encoder computes full attention across queries and candidate text sequences, and is placed as a second-pass re-ranker to maximize accuracy without compromising real-time search latencies.
+- **Second-Pass LLM Faithfulness Audit:** Implementing a separate LLM pass dedicated strictly to checking generated claims against the retrieved manual chunks separates contextual answer generation from verification logic, catching hallucinations before they reach operators.
+- **Groq LPU Selection:** Groq’s custom LPU hardware delivers ultra-fast token generation speeds (exceeding 500 tokens/sec), facilitating real-time interactive Q&A. Its high-availability free tier supports early development without licensing bottlenecks.
 
-### Trade-offs:
-1. **Local Embeddings vs. API:** Local SentenceTransformers and Cross-Encoders run without network latencies, but consume CPU/memory resources.
-2. **FAISS vs. ChromaDB:** FAISS is highly optimized for flat vector operations in memory, but ChromaDB provides comprehensive database persistence and self-healing schemas.
+---
 
-### Production Improvements:
-1. **Streaming Ingestion:** Implement Kafka or RabbitMQ event channels to stream live equipment telemetry and dynamically recalculate features.
-2. **Multi-Modal Document Layout Ingestion:** Incorporate layout-aware parsers (like Unstructured or PyMuPDF) to ingest engineering blueprint schematics and wiring diagram graphics.
-3. **Multilingual and Localized Term Mapping:** Standardize mechanical abbreviations and legacy technician slang onto clean canonical tokens during the tokenization stage.
+## 9. Production Improvements
+
+- **Remote MLflow Tracking Server:** Transition from the local filesystem store to a centralized Postgres backend database and an S3 artifact bucket to enable collaboration across multiple engineering teams.
+- **Metadata Filtering:** Integrate database-level metadata partitioning in ChromaDB to restrict searches to specific machinery categories, documents, or plant regions prior to vector matching.
+- **Streaming UI Outputs:** Refactor the generator pipeline to stream token outputs dynamically to the terminal or web dashboard to minimize user-perceived latencies.
+- **Automated Retraining Orchestrator:** Deploy Airflow or Prefect DAGs to trigger retraining and model deployments dynamically as new sensor streams drift from initial training ranges.
+- **Assistant Authentication Layer:** Enforce RBAC (Role-Based Access Control) to verify technician credentials before serving high-voltage safety instructions or operating manuals.
+- **Faithfulness Threshold Guardrails:** Build an automated system that blocks and re-generates LLM answers scoring below 0.70 in the auditor, ensuring safety-critical correctness in physical plants.
+
+---
+
+## 10. Dependencies
+
+| Library | Purpose |
+| :--- | :--- |
+| **pandas, numpy** | Data manipulation and telemetry array transformations |
+| **scikit-learn** | Standard ML classifiers, cross-validation splits, and parameter tuning |
+| **imbalanced-learn** | SMOTE oversampling algorithm implementation for class balancing |
+| **matplotlib** | Plotting of diagnostic visual assets (feature importance, PR curve, etc.) |
+| **shap** | Unified game-theoretic SHAP explainability calculations and plots |
+| **mlflow** | Parameter tracking, metrics logging, and artifact serialization |
+| **joblib** | Model and transformer pipeline serialization to local disk |
+| **sentence-transformers** | Dense sentence-level embedding matrix and cross-encoder re-ranking calculations |
+| **faiss-cpu** | Fast memory-mapped dense vector similarity search |
+| **chromadb** | Persistent, SQLite-backed serverless vector database engine |
+| **rank-bm25** | Lexical TF-IDF derived keyword indexing algorithm |
+| **groq** | High-speed LLM client for answer generation and claim audits |
+
+---
+
+*This project is submitted as an AI Developer Technical Assessment. Created and maintained for industrial-grade predictive analytics.*
