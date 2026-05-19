@@ -47,39 +47,29 @@ def main():
         print("\n[ERROR] Task 3 ML Training failed. Aborting RAG execution.")
         sys.exit(task3_process.returncode)
         
-    # 3. Copy model_summary.json into Task 4 v3, v2 and v1 docs/
-    model_summary_src = os.path.join(task3_v3_dir, "outputs", "model_summary.json")
-    if not os.path.exists(model_summary_src):
-        print(f"\n[ERROR] Could not locate model summary JSON at: {model_summary_src}")
-        sys.exit(1)
+    # 3. Copy model_summary.json into Task 4 v3 and v2 docs/
+    model_summary_src  = os.path.join(task3_v3_dir, "outputs", "model_summary.json")
+    model_summary_v2   = os.path.join(base_dir, "task4", "v2", "docs", "model_summary.json")
+    model_summary_v3   = os.path.join(base_dir, "task4", "v3", "docs", "model_summary.json")
+
+    if os.path.exists(model_summary_src):
+        # Ensure destination directories exist before copying
+        os.makedirs(os.path.dirname(model_summary_v2), exist_ok=True)
+        os.makedirs(os.path.dirname(model_summary_v3), exist_ok=True)
+        shutil.copy(model_summary_src, model_summary_v2)
+        print(f"[INTEGRATION] Copied model_summary.json → task4/v2/docs/")
+        shutil.copy(model_summary_src, model_summary_v3)
+        print(f"[INTEGRATION] Copied model_summary.json → task4/v3/docs/")
+    else:
+        print(f"[WARNING] model_summary.json not found at {model_summary_src} — skipping copy")
         
-    # Destination for v3
-    v3_docs_dir = os.path.join(task4_v3_dir, "docs")
-    os.makedirs(v3_docs_dir, exist_ok=True)
-    model_summary_dest_v3 = os.path.join(v3_docs_dir, "model_summary.json")
-    shutil.copy(model_summary_src, model_summary_dest_v3)
-    print(f"\n[INTEGRATION] Successfully copied model_summary.json to Task 4 v3 docs: {model_summary_dest_v3}")
-    
-    # Destination for v2
-    v2_docs_dir = os.path.join(task4_v2_dir, "docs")
-    os.makedirs(v2_docs_dir, exist_ok=True)
-    model_summary_dest_v2 = os.path.join(v2_docs_dir, "model_summary.json")
-    shutil.copy(model_summary_src, model_summary_dest_v2)
-    
-    # Destination for v1 (optional helper)
-    v1_docs_dir = os.path.join(task4_v1_dir, "docs")
-    os.makedirs(v1_docs_dir, exist_ok=True)
-    model_summary_dest_v1 = os.path.join(v1_docs_dir, "model_summary.json")
-    shutil.copy(model_summary_src, model_summary_dest_v1)
-    
     # 4. Part 2: Run Task 4 v3 RAG Assistant
     print("\n[2/2] Running Task 4: RAG Maintenance Assistant (v3 Hybrid Search)...")
-    # Ensure subprocess inherits standard input for interactive prompt looping
     task4_process = subprocess.run(
         [sys.executable, "main.py"],
-        cwd=task4_v3_dir,
+        cwd=os.path.join(base_dir, "task4", "v3"),
         env=os.environ.copy(),
-        stdin=sys.stdin,
+        stdin=subprocess.DEVNULL,
         stdout=sys.stdout,
         stderr=sys.stderr
     )
@@ -93,4 +83,7 @@ def main():
     print("=" * 60)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[run_all.py] Interrupted by user. Exiting cleanly.")
