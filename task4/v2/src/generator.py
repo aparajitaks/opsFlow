@@ -23,16 +23,30 @@ def generate_answer(query: str, retrieved_chunks: list[dict]) -> str:
             for c in retrieved_chunks
         ])
         
-        response = client.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=[
-                {"role": "system", "content": "You are an industrial maintenance assistant. Answer ONLY using the provided context. If the answer is not in the context, say exactly: 'I don't have enough information in my knowledge base to answer this question.' Do not use outside knowledge."},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
-            ],
-            temperature=0.0
-        )
-        return response.choices[0].message.content
-        
+        try:
+            response = client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=[
+                    {"role": "system", "content": "You are an industrial maintenance assistant. Answer ONLY using the provided context. If the answer is not in the context, say exactly: 'I don't have enough information in my knowledge base to answer this question.' Do not use outside knowledge."},
+                    {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
+                ],
+                temperature=0.0
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            # Handle Groq model decommissioning by falling back to modern llama-3.1-8b-instant
+            if "decommissioned" in str(e) or "not found" in str(e) or "400" in str(e):
+                response = client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[
+                        {"role": "system", "content": "You are an industrial maintenance assistant. Answer ONLY using the provided context. If the answer is not in the context, say exactly: 'I don't have enough information in my knowledge base to answer this question.' Do not use outside knowledge."},
+                        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
+                    ],
+                    temperature=0.0
+                )
+                return response.choices[0].message.content
+            else:
+                raise e
     except Exception as e:
         return f"Error during Groq generation: {e}"
 
