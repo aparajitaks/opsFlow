@@ -1,3 +1,22 @@
+"""
+main.py — Interactive RAG Assistant (Task 4 v3)
+================================================
+Runs the Task 4 v3 RAG pipeline in interactive mode.
+After running 5 automatic demo queries, opens a CLI loop
+where YOU can type your own maintenance questions.
+
+USE THIS WHEN:
+  - You want to ask your own questions to the RAG assistant
+  - You want to test hybrid search and faithfulness check interactively
+
+NOT FOR:
+  - Full pipeline automation (use run_all.py from opsFlow/ root instead)
+
+Usage:
+  cd task4/v3/
+  python main.py
+"""
+
 import os
 import sys
 import time

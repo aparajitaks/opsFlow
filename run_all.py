@@ -1,6 +1,22 @@
-# run_all.py
-# Runs Task 3 v3 first (trains models, saves model_summary.json)
-# Then runs Task 4 v2 (loads knowledge base including model_summary, starts RAG assistant)
+"""
+run_all.py — Automated Full Pipeline Runner
+============================================
+Runs the complete opsFlow pipeline end-to-end without any user input:
+  1. Task 3 v3: Trains ML models, saves model_summary.json
+  2. Copies model_summary.json into Task 4 knowledge base
+  3. Task 4 v3: Runs 5 demo queries automatically, then exits
+
+USE THIS WHEN:
+  - You want to see the full system working in one command
+  - You are demoing or submitting the project for review
+
+NOT FOR:
+  - Interactive Q&A sessions (use task4/v3/main.py directly instead)
+
+Usage:
+  cd opsFlow/
+  python run_all.py
+"""
 
 import os
 import sys

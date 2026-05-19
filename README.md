@@ -107,36 +107,46 @@ Download from: https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+main
 
 ## 6. How to Run
 
-### Option A — Full pipeline (recommended)
-Execute both tasks sequentially with dynamic model-to-assistant knowledge transfer using a single command:
+### Option A — Full automated pipeline (recommended for review)
+Runs everything end-to-end with no user input required.
+Task 3 trains the models, integration copies results to Task 4, Task 4 runs demo queries and exits.
+
 ```bash
-# From opsFlow/ root
+cd opsFlow/
 python run_all.py
-# Runs Task 3 v3 → copies model_summary.json → runs Task 4 v3
 ```
 
-### Option B — Run each task individually
-Step into specific version workspaces to evaluate performance stages:
+### Option B — Interactive RAG assistant (ask your own questions)
+Runs Task 4 v3 directly with a live CLI loop.
+Type any maintenance question and get a grounded answer with faithfulness score.
+
 ```bash
-# Task 3
-cd task3/v1 && python stage2_preprocessing.py   # baseline preprocessing
-cd task3/v2 && python main.py                    # feature engineering + CV
-cd task3/v3 && python main.py                    # full production pipeline
-
-# Task 4
-cd task4/v1 && python rag_pipeline.py            # baseline RAG
-cd task4/v2 && python main.py                    # persistent store + CLI
-cd task4/v2 && python main.py                    # persistent store + CLI
-cd task4/v3 && python main.py                    # hybrid search + faithfulness
+export GROQ_API_KEY='your-key-here'
+cd task4/v3/
+python main.py
 ```
 
-### Option C — Docker (Task 3 v3 only)
-Package and run the production predictive pipeline inside an isolated container:
+### Option C — Run individual task versions
+```bash
+# Task 3 versions
+cd task3/v1 && python stage2_preprocessing.py   # baseline preprocessing
+cd task3/v2 && python main.py                   # feature engineering + CV
+cd task3/v3 && python main.py                   # full production pipeline
+
+# Task 4 versions
+cd task4/v1 && python rag_pipeline.py           # baseline FAISS RAG
+cd task4/v2 && python main.py                   # ChromaDB + overlap chunking
+cd task4/v3 && python main.py                   # hybrid search + faithfulness
+```
+
+### Option D — Docker (Task 3 v3 only)
 ```bash
 cd task3/v3
 docker build -t task3-v3 .
 docker run -v $(pwd)/../data:/app/data task3-v3
 ```
+
+> **Quick rule:** Use `run_all.py` to see the full system. Use `task4/v3/main.py` to talk to the assistant.
 
 ---
 

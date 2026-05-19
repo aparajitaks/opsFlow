@@ -1,3 +1,15 @@
+"""
+main.py — Interactive RAG Assistant (Task 4 v2)
+================================================
+Runs the Task 4 v2 RAG pipeline in interactive mode.
+Uses persistent ChromaDB, overlap chunking, and strict grounding.
+After 4 automatic demo queries, opens a CLI loop for your questions.
+
+Usage:
+  cd task4/v2/
+  python main.py
+"""
+
 import os
 import sys
 import time
