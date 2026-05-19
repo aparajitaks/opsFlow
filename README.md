@@ -9,24 +9,41 @@ This repository contains Stage 1 through Stage 6 of a Machine Learning workflow 
 A clean, production-ready structure to organize your data, code, models, and results:
 
 ```text
-predictive-maintenance-ml/
-│
-├── data/                            # Local copies of dataset files
-├── notebooks/                       # Jupyter Notebooks (.ipynb) for EDA/interactive work
-├── models/                          # Saved binary model checkpoints (.pkl / .joblib)
-├── outputs/                         # Output artifacts (confusion matrices, ROC curves, CSVs)
-│   ├── logistic_regression_confusion_matrix.png
-│   └── random_forest_confusion_matrix.png
-│
-├── explore_predictive_maintenance.py # Stage 1: Exploratory Data Analysis (EDA)
-├── stage2_preprocessing.py          # Stage 2: Feature Engineering & Cleaning
-├── stage4_model_training.py         # Stage 4: Basic Training (LR and RF)
-├── stage5_model_evaluation.py       # Stage 5: Detailed Model Metrics & Plots
-├── stage6_overfitting_analysis.py   # Stage 6: Train-Test Gap Analysis
-│
-├── .gitignore                       # System files and local env exclude list
-├── requirements.txt                 # Project library dependencies
-└── README.md                        # Documentation and Local Run Guide (This File)
+opsFlow/
+├── task3/
+│   ├── v1/                              # Basic working implementation
+│   │   ├── stage2_preprocessing.py
+│   │   ├── stage4_model_training.py
+│   │   ├── stage5_model_evaluation.py
+│   │   ├── stage6_overfitting_analysis.py
+│   │   └── explore_predictive_maintenance.py
+│   ├── v2/                              # Modular split and SMOTE scaling implementation
+│   │   ├── src/
+│   │   │   ├── config.py
+│   │   │   ├── preprocess.py
+│   │   │   ├── train.py
+│   │   │   └── evaluate.py
+│   │   ├── outputs/
+│   │   └── main.py
+│   ├── v3/                              # Production ready orchestration with Docker & SHAP & MLflow
+│   │   ├── src/
+│   │   │   ├── config.py
+│   │   │   ├── preprocess.py
+│   │   │   ├── train.py
+│   │   │   ├── evaluate.py
+│   │   │   └── explainability.py
+│   │   ├── outputs/
+│   │   │   ├── models/
+│   │   │   ├── plots/
+│   │   │   └── mlflow/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   └── main.py
+│   └── data/                            # Shared data folder
+│       └── ai4i2020.csv
+├── README.md                            # Central Documentation (This File)
+├── requirements.txt                     # Local environment dependencies
+└── venv/                                # Active sandboxed environment
 ```
 
 ---
@@ -102,3 +119,51 @@ Run each Stage's python file sequentially to verify correct execution:
 ### Issue 2: Outdated Kaggle API credentials
 * **Cause:** `kagglehub` requires internet access to download the dataset.
 * **Fix:** Ensure your internet connection is active. No manual Kaggle API tokens are needed for public datasets pulled via `kagglehub.dataset_load()`.
+
+---
+
+## 5. Task 3 — Production-Ready v3 Implementation Guide
+
+The **v3** subdirectory is the production-ready version of the Predictive Maintenance pipeline. It adds:
+- **MLflow Experiment Tracking:** Local experiment runs logged and viewable in the MLflow UI.
+- **Hyperparameter Grid Search:** Optimized C, max_depth, and min_samples_leaf values via 5-Fold Stratified CV.
+- **SHAP Explainability:** Local feature impact (Beeswarm) and single-instance prediction driver (Force) plots.
+- **Model Serialization & Production Interface:** Saved pickled estimators and scalers loaded through a custom `load_and_predict` dictionary interface.
+- **Containerization (Docker):** Standardized runtime environment with custom volume binding.
+
+### Running v3 Locally
+```bash
+# Navigate to the v3 directory
+cd task3/v3
+
+# Activate your virtual environment
+source ../../venv/bin/activate
+
+# Execute the orchestrator
+python main.py
+```
+
+### Viewing MLflow UI Locally
+To analyze and compare metrics, runs, parameters, and tags logged by MLflow, run the following command from the `task3/v3/` directory:
+```bash
+mlflow ui
+```
+Open your browser and navigate to `http://localhost:5000` to access the MLflow dashboard.
+
+### Building and Running with Docker
+Standardize and isolate the environment using Docker:
+
+#### Step 1: Build the Docker Image
+```bash
+# From within task3/v3/ directory
+docker build -t task3-v3 .
+```
+
+#### Step 2: Run the Docker Container (with Dataset Volume Mount)
+To keep the Docker image small and modular, we exclude the raw dataset from the image and mount it dynamically as a volume at runtime:
+```bash
+# Using absolute path mount on macOS/Linux
+docker run -v $(pwd)/../data:/app/data task3-v3
+```
+This mounts your local `data/` folder directly to `/app/data/` inside the container, enabling seamless prediction runs without rebuilding the image!
+
