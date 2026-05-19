@@ -146,6 +146,13 @@ docker build -t task3-v3 .
 docker run -v $(pwd)/../data:/app/data task3-v3
 ```
 
+### Option E — Streamlit Web UI
+```bash
+cd opsFlow/
+streamlit run streamlit_app.py
+# Opens at http://localhost:8501
+```
+
 > **Quick rule:** Use `run_all.py` to see the full system. Use `task4/v3/main.py` to talk to the assistant.
 
 ---
