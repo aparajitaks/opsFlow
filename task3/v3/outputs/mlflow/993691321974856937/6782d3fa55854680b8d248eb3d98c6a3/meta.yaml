@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/galaxy_grid/Desktop/opsFlow/task3/v3/outputs/mlflow/993691321974856937/6782d3fa55854680b8d248eb3d98c6a3/artifacts
+end_time: 1779218149360
+entry_point_name: ''
+experiment_id: '993691321974856937'
+lifecycle_stage: active
+run_id: 6782d3fa55854680b8d248eb3d98c6a3
+run_name: Predictive_Maintenance_v3_Orchestration
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1779218098274
+status: 3
+tags: []
+user_id: galaxy_grid
