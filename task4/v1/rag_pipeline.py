@@ -5,7 +5,6 @@ import datetime
 import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
-from anthropic import Anthropic
 
 # =================================================================
 # STEP 1 — Maintenance Documents Ingestion
@@ -238,18 +237,26 @@ Answer:"""
 
     # 4. Generate Answer via Anthropic SDK
     print("Calling Anthropic Claude API for Answer Generation...")
-    try:
-        message = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-latest", # Claude 3.5 Sonnet
-            max_tokens=1000,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+    if anthropic_client.api_key == "dummy-key":
+        answer = (
+            "[MOCK LLM RESPONSE - NO ANTHROPIC API KEY SET]\n"
+            "To resolve, set your Anthropic API Key: export ANTHROPIC_API_KEY='your-key'\n"
+            "Determined Grounding Context:\n"
+            + "\n".join([f" - [{c['doc_name']} | Chunk {c['chunk_index']}]" for c in retrieved_chunks_list])
         )
-        answer = message.content[0].text
-    except Exception as e:
-        answer = f"Error during generation: {e}"
-        print(f"API Error: {e}")
+    else:
+        try:
+            message = anthropic_client.messages.create(
+                model="claude-3-5-sonnet-latest", # Claude 3.5 Sonnet
+                max_tokens=1000,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            answer = message.content[0].text
+        except Exception as e:
+            answer = f"Error during generation: {e}"
+            print(f"API Error: {e}")
         
     print("\n--- CLAUDE GENERATED ANSWER ---")
     print(answer)
