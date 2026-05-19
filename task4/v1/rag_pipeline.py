@@ -316,7 +316,29 @@ Answer:"""
 # =================================================================
 # MAIN PIPELINE ORCHESTRATOR & DEMO RUNS
 # =================================================================
+def load_env_file():
+    # Walk up directories starting from this file's folder to find and load .env
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    while current_dir:
+        env_path = os.path.join(current_dir, ".env")
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'").strip('"')
+                        if k:
+                            os.environ[k] = v
+            break
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir == current_dir:
+            break
+        current_dir = parent_dir
+
 def main():
+    load_env_file()
     # Folder paths relative to task4/v1
     base_dir = os.path.dirname(os.path.abspath(__file__))
     docs_dir = os.path.join(base_dir, "docs")
