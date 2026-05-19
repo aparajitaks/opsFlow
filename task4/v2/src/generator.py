@@ -24,7 +24,7 @@ def generate_answer(query: str, retrieved_chunks: list[dict]) -> str:
     ])
     
     max_retries = 3
-    retry_delays = [2, 5, 10]  # seconds to wait between retries
+    retry_delays = [3, 6, 12]  # seconds to wait between retries
     
     for attempt in range(max_retries):
         try:
