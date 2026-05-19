@@ -1,0 +1,22 @@
+=== GENERAL INDUSTRIAL MAINTENANCE SCHEDULES AND STANDARDS ===
+
+This guide establishes the general maintenance schedules, inspection intervals, and lubrication procedures for our facility's mechanical equipment. Adhering to these specifications is critical to preventing premature component failure and optimizing operational uptime.
+
+1. GENERAL INSPECTION SCHEDULES
+Inspections are divided into daily, weekly, and monthly intervals:
+- Daily: Operators must perform visual inspections before every shift. Look for oil leaks around gearboxes, check belt tension, inspect coupling guards, and listen for abnormal mechanical squealing or grinding noises. Check sensor readings on the control panel to ensure baseline parameters are within normal limits.
+- Weekly: Maintenance technicians must perform detailed vibrational checks and clean dust or debris accumulation from ventilation shrouds. Check the structural integrity of mounting bolts and verify coupling alignments.
+- Monthly: Conduct a thorough electrical terminal audit, inspect physical seal degradation, and run non-destructive testing (NDT) on structural frame welds.
+
+2. DETAILED INSPECTION INTERVALS
+Different equipment categories demand specific inspection frequencies based on load severity:
+- Rotating shafts: Inspect coupling backlash every 3 months. Verify axial and radial runout profiles.
+- Bearings: Inspect housing temperatures and run vibration spectrum analysis every 4 weeks. High-frequency accelerometers must be utilized to catch early stage-1 bearing defect signatures in the inner or outer raceways.
+- Lubrication seals: Perform a comprehensive seal wear audit every 6 months. Immediately replace any seals showing signs of dry rotting, cracking, or minor leakage.
+
+3. SYSTEMATIC LUBRICATION PROCEDURES
+Lubrication is the single most critical factor in extending bearing and gearbox life. Follow these steps precisely:
+- Cleanliness: Before adding any lubricant, wipe the grease fitting or oil fill cap with a clean, lint-free cloth. Debris introduced during lubrication will act as an abrasive paste inside the bearing.
+- Grease application: Standard roller bearings must be lubricated using an approved Lithium Complex EP2 grease. Apply grease using a manual grease gun. The standard re-lubrication interval for bearings operating under continuous heavy loads is every 500 operating hours. Do not over-grease; fill the bearing cavity to approximately 30-50% capacity. Excess grease causes churning, resulting in rapid heat buildup and thermal breakdown of the lubricant base oil.
+- Gearbox oil changes: Gearboxes require high-performance synthetic gear oil (ISO VG 220). Perform the first oil flush and change after 500 operating hours for new units, and every 4000 operating hours or 12 months thereafter. Inspect old oil for metal shavings, emulsification, or severe oxidation. Always take a 100ml sample for oil analysis to monitor viscosity, acid index, and wear metal concentrations.
+- Recording: Log the exact date, technician name, lubricant volume, and brand name in the system ledger after every lubrication event.

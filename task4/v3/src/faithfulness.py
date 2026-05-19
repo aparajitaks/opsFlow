@@ -1,0 +1,120 @@
+import json
+import time
+
+def check_faithfulness(answer: str, retrieved_chunks: list[dict], client) -> dict:
+    """
+    Step 4: Claims verification pass using Groq.
+    Determines if the generated response is strictly grounded in the retrieved sources.
+    Implements rate-limit exponential backoff logic on the auditor LLM call.
+    """
+    retrieved_chunks_text = "\n\n".join([
+        f"[{c['doc_name']} | Chunk {c['chunk_index']}]\n{c['text']}"
+        for c in retrieved_chunks
+    ])
+    
+    prompt = f"""You are a faithfulness auditor. Given a generated answer and the source context it was based on, determine whether every factual claim in the answer is directly supported by the context.
+
+Context:
+{retrieved_chunks_text}
+
+Generated Answer:
+{answer}
+
+Respond in this exact JSON format:
+{{
+  "faithful": true or false,
+  "score": 0.0 to 1.0,
+  "unsupported_claims": ["claim 1", "claim 2"] or [],
+  "verdict": "one sentence summary"
+}}"""
+
+    max_retries = 3
+    retry_delays = [3, 6, 12]  # seconds to wait between retries
+    
+    for attempt in range(max_retries):
+        try:
+            try:
+                response = client.chat.completions.create(
+                    model="llama3-8b-8192",
+                    messages=[
+                        {"role": "system", "content": "You are a factual claim auditor. Respond ONLY in valid JSON. Do not write introductory or concluding remarks outside the JSON block. CRITICAL: If the Generated Answer is a refusal to answer (e.g., 'I don't have enough information...', 'I do not know', etc.), it makes no factual claims. Therefore, you must mark it as faithful (faithful: true, score: 1.0, and unsupported_claims: [])."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.0
+                )
+            except Exception as model_err:
+                if "decommissioned" in str(model_err) or "not found" in str(model_err) or "400" in str(model_err):
+                    response = client.chat.completions.create(
+                        model="llama-3.1-8b-instant",
+                        messages=[
+                            {"role": "system", "content": "You are a factual claim auditor. Respond ONLY in valid JSON. Do not write introductory or concluding remarks outside the JSON block. CRITICAL: If the Generated Answer is a refusal to answer (e.g., 'I don't have enough information...', 'I do not know', etc.), it makes no factual claims. Therefore, you must mark it as faithful (faithful: true, score: 1.0, and unsupported_claims: [])."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.0
+                    )
+                else:
+                    raise model_err
+            raw_content = response.choices[0].message.content
+            return parse_faithfulness_json(raw_content)
+        except Exception as e:
+            is_429 = "429" in str(e) or "rate limit" in str(e).lower()
+            if is_429 and attempt < max_retries - 1:
+                wait = retry_delays[attempt]
+                print(f"[Rate limit hit in Auditor] Waiting {wait}s before retry {attempt + 2}/{max_retries}...")
+                time.sleep(wait)
+            else:
+                return {
+                    "faithful": False,
+                    "score": 0.0,
+                    "unsupported_claims": [f"Auditor failed: {str(e)}"],
+                    "verdict": "Auditing service encountered an error."
+                }
+                
+    return {
+        "faithful": False,
+        "score": 0.0,
+        "unsupported_claims": ["Rate limit exceeded in Auditor"],
+        "verdict": "Auditing was blocked by rate limits after multiple retries."
+    }
+
+def parse_faithfulness_json(raw_text: str) -> dict:
+    raw_text = raw_text.strip()
+    if raw_text.startswith("```"):
+        lines = raw_text.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines[-1].startswith("```"):
+            lines = lines[:-1]
+        raw_text = "\n".join(lines).strip()
+        
+    try:
+        start_idx = raw_text.index("{")
+        end_idx = raw_text.rindex("}") + 1
+        json_str = raw_text[start_idx:end_idx]
+        return json.loads(json_str)
+    except Exception as e:
+        return {
+            "faithful": False,
+            "score": 0.0,
+            "unsupported_claims": ["Failed to extract valid JSON from auditor response"],
+            "verdict": f"JSON parsing error: {str(e)}"
+        }
+
+def get_faithfulness_explanation() -> str:
+    return (
+        "--- FAITHFULNESS VS RELEVANCE EXPLANATION ---\n"
+        "1. Relevance:\n"
+        "   - Relevance measures if the retrieved or generated contents focus on the same subject or domain\n"
+        "     as the user's question. For example, if a user asks about high-voltage lines, a paragraph detailing\n"
+        "     the general operations of 480V cabinets is highly relevant.\n"
+        "2. Faithfulness:\n"
+        "   - Faithfulness measures factual alignment. It verifies that every claims, parameter value, or troubleshooting\n"
+        "     instruction generated by the assistant is strictly supported by the actual source context without introducing\n"
+        "     extraneous assumptions or hallucinations.\n"
+        "3. Highly Relevant but Unfaithful Example:\n"
+        "   - If a technician asks: 'What is the voltage limit for high-voltage cabinets?'\n"
+        "   - A relevant but unfaithful model might answer: 'The voltage limit for high-voltage cabinets is 600V.'\n"
+        "     Even if the context mentions 'voltage limits are defined in safety procedure 3', the model hallucinated the\n"
+        "     value '600V' from its pre-training weights. This response is highly relevant but factually unfaithful,\n"
+        "     introducing high risk to industrial safety operations."
+    )

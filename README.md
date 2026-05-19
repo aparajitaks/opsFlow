@@ -3,7 +3,7 @@
 Welcome to **opsFlow**, a unified enterprise intelligence system for predictive mechanical engineering, industrial safety orchestration, and technical operations support. This project combines two core AI capabilities:
 
 1. **Task 3 — Equipment Failure Prediction (ML):** A multi-stage Machine Learning pipeline utilizing the **AI4I 2020 Predictive Maintenance Dataset** to preemptively flag structural, thermal, and mechanical breakdowns.
-2. **Task 4 — Retrieval-Based AI Assistant (RAG):** A zero-dependency semantic Retrieval-Augmented Generation assistant that searches plant operation manuals, lock-out/tag-out (LOTO) protocols, and mechanical FAQs to output grounded maintenance procedures.
+2. **Task 4 — Retrieval-Based AI Assistant (RAG):** A zero-dependency semantic Retrieval-Augmented Generation assistant upgraded to a premium production-grade pipeline (**v3**) featuring **Hybrid Search (BM25 + Semantic)**, **Reciprocal Rank Fusion (RRF)**, **Cross-Encoder Re-Ranking**, and **Faithfulness Auditing**.
 
 ---
 
@@ -34,20 +34,26 @@ The opsFlow system integrates predictive telemetry analysis directly with semant
                                                                   |                 
                                                                   v                 
                                                    +--------------+-------------+   
-                                                   |    Local Dense Embedder    |   
-                                                   |    (all-MiniLM-L6-v2)      |   
+                                                   | Hybrid Search (ChromaDB +  |   
+                                                   |  rank-bm25 with RRF Fusion)|   
                                                    +--------------+-------------+   
                                                                   |                 
                                                                   v                 
                                                    +--------------+-------------+   
-                                                   |  Persistent vector Store   |   
-                                                   |      (ChromaDB Index)      |   
+                                                   |  Cross-Encoder Re-Ranking  |   
+                                                   | (MiniLM-L-6-v2 Top 10->3)  |   
                                                    +--------------+-------------+   
                                                                   |                 
                                                                   v                 
                                                    +--------------+-------------+   
                                                    |      Grounded Generator     |   
-                                                   |   (Groq Llama-3.1-8B LPU)  |   
+                                                   |   (Groq Llama-3-8B LPU)    |   
+                                                   +--------------+-------------+   
+                                                                  |                 
+                                                                  v                 
+                                                   +--------------+-------------+   
+                                                   |  Faithfulness Auditor LLM  |   
+                                                   | (Claims Verification Pass) |   
                                                    +--------------+-------------+   
                                                                   |                 
                                                                   v                 
@@ -107,8 +113,8 @@ python run_all.py
 
 ### Unified Runner Logic (`run_all.py`):
 1. **Task 3 execution:** Runs the production ML tuning pipeline `task3/v3/main.py` inside a subprocess, creating local SHAP plots, logging parameter metrics to MLflow, serializing models, and dumping `model_summary.json`.
-2. **Knowledge Transfer:** Copies the model summary JSON directly into the Task 4 RAG knowledge folder (`task4/v2/docs/model_summary.json` and `task4/v1/docs/model_summary.json`).
-3. **Task 4 execution:** Launches `task4/v2/main.py` inside a subprocess, which embeds the new model parameters, loads or rebuilds the ChromaDB vector database, runs verification tests, and initializes the interactive terminal prompt.
+2. **Knowledge Transfer:** Copies the model summary JSON directly into the Task 4 RAG knowledge folder (`task4/v3/docs/model_summary.json`, `task4/v2/docs/model_summary.json` and `task4/v1/docs/model_summary.json`).
+3. **Task 4 execution:** Launches the new hybrid `task4/v3/main.py` inside a subprocess, which loads embeddings and cross-encoders, constructs the local BM25 index, rebuilds ChromaDB dynamically upon count mismatches, runs the full hybrid RRF search suite, audits output claims for faithfulness, and enters the terminal console loop.
 
 ---
 
@@ -170,6 +176,18 @@ cd task4/v2
 python main.py
 ```
 
+### version v3: Hybrid Search, Re-Ranking, and Faithfulness Auditing
+A production-grade, premium RAG pipeline introducing key architectural layers:
+1. **Hybrid Retrieval (BM25 + Semantic):** Searches dense embeddings (ChromaDB) and whitespace-tokenized keyword indices (rank-bm25) in parallel.
+2. **Reciprocal Rank Fusion (RRF):** Fuses ordinal rankings using dampening constant $k=60$ to resolve uncalibrated dense/lexical score ranges.
+3. **Cross-Encoder Re-Ranking:** Scores top 10 fused candidates down to top 3 using a local `ms-marco-MiniLM-L-6-v2` transformer for deep token cross-attention.
+4. **Faithfulness Auditor:** Executes a second-pass Groq claim auditor verifying generated answers strictly against context, flagging out-of-scope hallucinations.
+
+```bash
+cd task4/v3
+python main.py
+```
+
 ---
 
 ## 6. Sample Terminal Outputs
@@ -193,24 +211,40 @@ Predicted Class:            0 (No Failure)
 Failure State Probability:  0.0125
 ```
 
-### Task 4 RAG Assistant Execution:
+### Task 4 v3 RAG Assistant Execution:
 ```text
 =================================================================
-      TASK 4 — RETRIEVAL-BASED AI ASSISTANT (RAG): V2            
+      TASK 4 — RETRIEVAL-BASED AI ASSISTANT (RAG): V3            
 =================================================================
 [Step 1] Overlap Chunking Complete. Total Chunks Created: 11
-[Step 2 & 3] Loading local SentenceTransformer embedder...
-[ChromaDB] Collection count mismatch (10 vs 11 chunks). Rebuilding database for fresh updates...
-[ChromaDB] Computing embeddings and populating database for 11 chunks...
+[Step 2] Loading local SentenceTransformer embedder...
+[ChromaDB] Collection 'maintenance_kb' successfully loaded from disk.
+[Step 3] Building local BM25 Keyword Index...
+[Step 4] Loading local Cross-Encoder re-ranker...
 
--------------------------------------------------------------
-QUESTION: What was the best performing model?
--------------------------------------------------------------
-Retrieved Sources used for Grounding:
- [1] Doc: model_summary.json | Chunk ID: 0 | Similarity: 0.5422
+=================================================================
+      RUNNING MANDATORY RAG V3 DEMO QUERIES                      
+=================================================================
+
+==============================================================
+QUERY: What error code is logged when winding temperature exceeds 125 degrees?
+==============================================================
+[Hybrid Retrieval Fusion Breakdown]
+ - Semantic Search Only retrieved: 'safety_procedures.txt' (Chunk 8)
+ - BM25 Keyword Search Only retrieved: 'preventive_maintenance.txt' (Chunk 3)
+ - Retrieved by BOTH (Intersection):  'maintenance_guide.txt' (Chunk 0)
+
+[Cross-Encoder Re-Ranking Position Shifts]
+ • 'maintenance_guide.txt' (Chunk 0) stayed at rank 1 (RE-RANKED TOP 3)
+ • 'preventive_maintenance.txt' (Chunk 3) moved from rank 4 → rank 2 (RE-RANKED TOP 3)
+
 Generated Grounded Answer:
-The best performing model in the training results is the Random Forest. It achieved a best F1 score of 0.8205 and a best ROC-AUC score of 0.9412.
--------------------------------------------------------------
+When winding temperature exceeds 125 degrees Celsius, the system logs error code ERR-101.
+
+Faithfulness Check:
+  Faithful : Yes
+  Score    : 1.00
+  Verdict  : The claim regarding winding temperature and error code ERR-101 is directly supported by the maintenance guide.
 ```
 
 ---
@@ -219,12 +253,13 @@ The best performing model in the training results is the Random Forest. It achie
 
 ### Assumptions:
 1. **Model Evaluation Metrics:** F1-score is prioritized over absolute Accuracy due to the severe (3.39%) class imbalance.
-2. **Grounding Fallback Threshold:** Similarity scores below a cosine limit default to strict fallback string completions to prevent hallucinations when answers are missing.
+2. **Grounding Fallback Threshold:** Factual verification is checked via second-pass LLM claim analysis rather than raw distance boundaries, catching out-of-scope answers.
 
 ### Trade-offs:
-1. **Local Embeddings vs. API:** Local SentenceTransformers run without network latencies, but consume CPU/memory resources.
+1. **Local Embeddings vs. API:** Local SentenceTransformers and Cross-Encoders run without network latencies, but consume CPU/memory resources.
 2. **FAISS vs. ChromaDB:** FAISS is highly optimized for flat vector operations in memory, but ChromaDB provides comprehensive database persistence and self-healing schemas.
 
 ### Production Improvements:
 1. **Streaming Ingestion:** Implement Kafka or RabbitMQ event channels to stream live equipment telemetry and dynamically recalculate features.
-2. **Hybrid Retrieval:** Combine ChromaDB dense vector searches with BM25 keyword matching for optimal acronym and error-code lookups.
+2. **Multi-Modal Document Layout Ingestion:** Incorporate layout-aware parsers (like Unstructured or PyMuPDF) to ingest engineering blueprint schematics and wiring diagram graphics.
+3. **Multilingual and Localized Term Mapping:** Standardize mechanical abbreviations and legacy technician slang onto clean canonical tokens during the tokenization stage.

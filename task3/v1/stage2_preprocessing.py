@@ -16,8 +16,8 @@ def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
     print("\n--- Starting Stage 2: Feature Engineering & Preprocessing ---")
     processed_df = df.copy()
     
-    columns_to_drop = ['UDI', 'Product ID']
-    print(f"Dropping identifier columns: {columns_to_drop}...")
+    columns_to_drop = ['TWF', 'HDF', 'PWF', 'OSF', 'RNF']
+    print(f"Dropping leaky columns (failure modes): {columns_to_drop}...")
     processed_df = processed_df.drop(columns=columns_to_drop)
     
     print("Encoding categorical column 'Type' using LabelEncoder...")

@@ -1,0 +1,26 @@
+=== PREVENTIVE AND PREDICTIVE MAINTENANCE TECHNICAL STRATEGY ===
+
+This document details the preventive and predictive maintenance strategies, continuous sensor monitoring protocols, and critical mechanical wear indicators used to optimize factory floor reliability.
+
+1. CRITICAL SENSOR MONITORING PROTOCOLS
+Continuous telemetry tracking enables real-time health assessment and prevents catastrophic equipment breakdowns:
+- Temperature Sensors: Dual RTD (Resistance Temperature Detector) sensors are embedded in the motor stator windings and bearing housings. Thermal monitoring catches localized cooling failures, overloaded winding states, or dry bearing friction early.
+- Vibration Accelerometers: High-frequency triaxial accelerometers are mounted on the drive-end and non-drive-end bearing housings. Vibration velocity (measured in mm/s RMS) and high-frequency acceleration envelope spectra are captured continuously.
+- Acoustic Emissions: Ultrasonic acoustic sensors are placed near low-speed rotating bearings to detect micro-cracks, mechanical stress waves, and early-stage structural spalling that standard vibration analysis might miss.
+- Electrical Signature Analysis (ESA): Current clamps monitor the three-phase AC input current waveform to identify current imbalances, rotor bar damage, and stator winding insulation leakage.
+
+2. PREDICTIVE MAINTENANCE STRATEGIES
+Rather than performing maintenance on a rigid calendar schedule (preventive), predictive maintenance schedules repairs based on the actual measured condition of the asset:
+- Trend Analysis: Telemetry data must be trended over time. A slow, steady rise in bearing vibration velocity from 1.5 mm/s to 4.5 mm/s over several months indicates gradual wear, allowing technicians to schedule a replacement during a planned shutdown.
+- Threshold-Based Alarms: The control system triggers automatic alerts when specific boundaries are crossed:
+  * Vibration Velocity Alert: 4.5 mm/s RMS (Schedule inspection within 7 days).
+  * Vibration Velocity Danger Limit: 7.1 mm/s RMS (Immediate controlled machine shutdown).
+  * Winding Temperature Alert: 125 degrees Celsius.
+  * Winding Temperature Critical Trip: 140 degrees Celsius.
+
+3. CRITICAL WEAR INDICATORS AND INSPECTION CRITERIA
+During planned inspections, technicians must check for these specific indicators of wear:
+- Shaft Coupling Wear: Inspect the elastomeric inserts (spider couplings) for visible cracks, rubber shredding, or dry rotting. Measure coupling backlash; backlash exceeding 0.5 degrees requires coupling spider replacement.
+- Gearbox Backlash and Oil Condition: Check gear backlash using a dial indicator. Analyze gearbox oil for metal particulates (iron, brass) which indicate severe gear face wear or bearing cage degradation.
+- Structural Belts and Sheaves: Check V-belts for cracking, side-wall polishing, and proper tension. Use a laser alignment tool to check sheave alignments; misalignment exceeding 0.1 degrees must be corrected.
+- Tool and Cutter Wear: For cutting systems, measure the edge radius of the blades. Blade edges showing more than 0.2mm of rounding or micro-chipping must be reground or replaced immediately to prevent motor overload.
