@@ -107,13 +107,15 @@ Download from: https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+main
 
 ## 6. How to Run
 
-### Option A — Full automated pipeline (recommended for review)
-Runs everything end-to-end with no user input required.
-Task 3 trains the models, integration copies results to Task 4, Task 4 runs demo queries and exits.
+### Option A — Full pipeline + Web UI (recommended)
+Runs Task 3 training, Task 4 demo queries, then launches the Streamlit
+web interface where you can ask your own questions interactively.
 
 ```bash
 cd opsFlow/
 python run_all.py
+# Streamlit UI opens automatically at http://localhost:8501
+# Press Ctrl+C to stop
 ```
 
 ### Option B — Interactive RAG assistant (ask your own questions)

@@ -1,17 +1,18 @@
 """
-run_all.py — Automated Full Pipeline Runner
-============================================
-Runs the complete opsFlow pipeline end-to-end without any user input:
+run_all.py — Full Pipeline Runner + UI Launcher
+=================================================
+Runs the complete opsFlow system in sequence:
   1. Task 3 v3: Trains ML models, saves model_summary.json
-  2. Copies model_summary.json into Task 4 knowledge base
-  3. Task 4 v3: Runs 5 demo queries automatically, then exits
+  2. Integration: Copies model_summary.json into Task 4 knowledge base
+  3. Task 4 v3: Runs 5 automated demo queries
+  4. Streamlit UI: Launches interactive web interface at localhost:8501
 
 USE THIS WHEN:
-  - You want to see the full system working in one command
-  - You are demoing or submitting the project for review
+  - You want to run the full system in one command
+  - You want the interactive web UI for asking your own questions
 
-NOT FOR:
-  - Interactive Q&A sessions (use task4/v3/main.py directly instead)
+STOPPING:
+  - Press Ctrl+C once to stop the Streamlit server and exit cleanly
 
 Usage:
   cd opsFlow/
@@ -52,7 +53,7 @@ def main():
     task4_v1_dir = os.path.join(base_dir, "task4", "v1")
     
     # 2. Part 1: Run Task 3 v3 ML Training
-    print("\n[1/2] Running Task 3: Equipment Failure Prediction...")
+    print("\n[1/3] Running Task 3: Equipment Failure Prediction...")
     task3_process = subprocess.run(
         [sys.executable, "main.py"],
         cwd=task3_v3_dir,
@@ -79,8 +80,8 @@ def main():
     else:
         print(f"[WARNING] model_summary.json not found at {model_summary_src} — skipping copy")
         
-    # 4. Part 2: Run Task 4 v3 RAG Assistant
-    print("\n[2/2] Running Task 4: RAG Maintenance Assistant (v3 Hybrid Search)...")
+    # 4. Part 2: Run Task 4 v3 RAG Assistant (Non-interactive automated queries)
+    print("\n[2/3] Running Task 4: RAG Maintenance Assistant (v3 Hybrid Search)...")
     task4_process = subprocess.run(
         [sys.executable, "main.py"],
         cwd=os.path.join(base_dir, "task4", "v3"),
@@ -94,12 +95,23 @@ def main():
         print("\n[ERROR] Task 4 RAG Assistant failed.")
         sys.exit(task4_process.returncode)
         
+    # 5. Part 3: Launch Streamlit Web UI
     print("\n" + "=" * 60)
-    print("opsFlow execution completed successfully!")
+    print("opsFlow — Launching Streamlit UI...")
     print("=" * 60)
+    print("Opening at: http://localhost:8501")
+    print("Press Ctrl+C to stop the server.\n")
+
+    try:
+        streamlit_process = subprocess.run(
+            [sys.executable, "-m", "streamlit", "run", "streamlit_app.py",
+             "--server.headless", "false",
+             "--browser.gatherUsageStats", "false"],
+            cwd=base_dir,
+            env=os.environ.copy()
+        )
+    except KeyboardInterrupt:
+        print("\n[run_all.py] Streamlit server stopped. Goodbye!")
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n[run_all.py] Interrupted by user. Exiting cleanly.")
+    main()
