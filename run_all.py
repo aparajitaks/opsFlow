@@ -21,8 +21,10 @@ Usage:
 
 import os
 import sys
+import time
 import shutil
 import subprocess
+import webbrowser
 
 def load_env_file():
     # Search for .env file in the current directory
@@ -99,19 +101,38 @@ def main():
     print("\n" + "=" * 60)
     print("opsFlow — Launching Streamlit UI...")
     print("=" * 60)
-    print("Opening at: http://localhost:8501")
-    print("Press Ctrl+C to stop the server.\n")
 
     try:
-        streamlit_process = subprocess.run(
+        streamlit_process = subprocess.Popen(
             [sys.executable, "-m", "streamlit", "run", "streamlit_app.py",
-             "--server.headless", "false",
-             "--browser.gatherUsageStats", "false"],
+             "--server.headless", "true",
+             "--browser.gatherUsageStats", "false",
+             "--server.port", "8501"],
             cwd=base_dir,
             env=os.environ.copy()
         )
+        
+        # Wait for Streamlit to fully start before opening browser
+        print("Starting Streamlit server", end="", flush=True)
+        for _ in range(5):
+            time.sleep(1)
+            print(".", end="", flush=True)
+        print(" Ready!")
+        
+        print("\n✅ Streamlit UI is running at: http://localhost:8501")
+        print("Press Ctrl+C to stop the server.\n")
+        
+        # Open browser automatically after server is ready
+        webbrowser.open("http://localhost:8501")
+        
+        # Keep run_all.py alive until user presses Ctrl+C
+        streamlit_process.wait()
+
     except KeyboardInterrupt:
-        print("\n[run_all.py] Streamlit server stopped. Goodbye!")
+        print("\n[run_all.py] Stopping Streamlit server...")
+        streamlit_process.terminate()
+        streamlit_process.wait()
+        print("[run_all.py] Server stopped. Goodbye!")
 
 if __name__ == "__main__":
     main()

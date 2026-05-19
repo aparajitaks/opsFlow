@@ -28,6 +28,13 @@ from src.logger import log_query
 from groq import Groq
 import streamlit as st
 
+st.set_page_config(
+    page_title="opsFlow Maintenance Assistant",
+    page_icon="🔧",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 def load_env_file():
     """Loads environment variables from workspace root .env if present."""
     env_path = os.path.join(base_dir, ".env")
@@ -79,16 +86,6 @@ def load_pipeline():
         "reranker": reranker_model,
         "log_path": log_path
     }
-
-# ----------------------------------------------------
-# Page Configuration & Aesthetics
-# ----------------------------------------------------
-st.set_page_config(
-    page_title="opsFlow RAG Assistant",
-    page_icon="🔧",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # Custom premium styling rules using curated glassmorphic dark templates
 st.markdown(
