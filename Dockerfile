@@ -1,5 +1,5 @@
 # ==========================================
-# Dockerfile.backend - FastAPI REST Service
+# Dockerfile - Unified Streamlit Application
 # ==========================================
 FROM python:3.11-slim as builder
 
@@ -28,6 +28,6 @@ ENV PYTHONUNBUFFERED=1
 
 COPY . .
 
-EXPOSE 8000
+EXPOSE 8501
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]

@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from frontend.state import check_backend_health, clear_query_cache
+from frontend.state import clear_query_cache
 from frontend.components.chat_panel import render_chat_panel
 from frontend.components.telemetry_panel import render_telemetry_panel
 from frontend.components.metrics_panel import render_metrics_panel
@@ -84,15 +84,6 @@ st.markdown(
 st.markdown('<div class="title-text">🔧 opsFlow Intelligent Assistant</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle-text">Production-Grade RAG Semantic Grounding & Telemetry Failure Classification Console</div>', unsafe_allow_html=True)
 
-# 4. Check Backend Health
-backend_healthy = check_backend_health()
-if not backend_healthy:
-    st.error(
-        "🚨 **FastAPI Backend is Offline.** "
-        "Please start the backend service on port 8000 before executing queries: "
-        "`python api/main.py` or run `make run-backend`."
-    )
-    st.stop()
 
 # 5. Sidebar controls
 with st.sidebar:
