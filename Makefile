@@ -13,16 +13,16 @@ help:
 	@echo "  make clean          - Purge bytecode cache, build artifacts, and logs"
 
 install:
-	pip install -r requirements.txt
+	./venv/bin/pip install -r requirements.txt
 
 train:
-	python main.py --train
+	./venv/bin/python main.py --train
 
 evaluate:
-	python main.py --evaluate
+	./venv/bin/python main.py --evaluate
 
 test:
-	pytest -v
+	./venv/bin/pytest -v
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
