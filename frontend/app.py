@@ -129,7 +129,7 @@ def run_app():
             
     with tab_ml:
         try:
-            render_telemetry_panel()
+            render_telemetry_panel(custom_key if custom_key else None)
         except Exception as e:
             st.error("Error rendering Telemetry Failure Diagnosis panel")
             st.exception(e)

@@ -1,10 +1,11 @@
 import streamlit as st
-from frontend.state import predict_ml
+from frontend.state import predict_ml, query_rag
 
-def render_telemetry_panel():
+def render_telemetry_panel(custom_key: str = None):
     """
     Renders telemetry sliders, model selection dropdown, failure prediction triggers,
-    engineered features calculation, and failure probability gauges.
+    engineered features calculation, and failure probability gauges, integrated
+    with RAG diagnostic recommendations.
     """
     st.subheader("⚙️ Real-time Equipment Failure Predictor")
     st.markdown("Adjust telemetry attributes below to simulate operational states and calculate failure probability.")
@@ -86,3 +87,40 @@ def render_telemetry_panel():
                 e_col1.metric("Temp Difference (ΔT)", f"{eng['temp_diff']:.2f} K")
                 e_col2.metric("Calculated Power", f"{eng['power']:.1f} W")
                 e_col3.metric("Wear-Torque Ratio", f"{eng['wear_torque_ratio']:.4f}")
+
+                # --- Unified ML-RAG Prescription Plan ---
+                st.markdown("---")
+                st.markdown("### 🤖 Integrated Prescriptive Maintenance Plan")
+                
+                # Formulate intelligent search queries based on telemetry failure vectors
+                failure_vectors = []
+                if eng["temp_diff"] >= 9.5 or proc_temp >= 312.0 or air_temp >= 302.0:
+                    failure_vectors.append("Thermographic Winding Overheating (HDF)")
+                    rag_query = "motor overheating winding process temperature troubleshooting ERR-101 ERR-102"
+                elif wear >= 150.0:
+                    failure_vectors.append("Severe Tool Wear & Bearing Defect Risk (TWF)")
+                    rag_query = "bearing vibrational defect structural inspection tool wear maintenance schedules"
+                elif torque >= 55.0 or speed >= 2200.0 or eng["power"] >= 80000.0:
+                    failure_vectors.append("Drive Train Overstrain & Current Spike Risk (OSF/PWF)")
+                    rag_query = "overcurrent spike torque limits mechanical vibration coupling alignment ERR-201 ERR-301"
+                else:
+                    rag_query = "preventive maintenance safety lockout tagout schedules gear lubrication"
+                
+                if pred == 1:
+                    st.warning(f"🚨 **Failure Diagnostics Identified:** {', '.join(failure_vectors) if failure_vectors else 'General Telemetry Anomaly'}")
+                else:
+                    st.info("🟢 **Operational Status:** Parameters within safety bounds. Preventive schedules should be verified.")
+                
+                with st.spinner("Retrieving relevant industrial manuals and generating grounded maintenance plan..."):
+                    rag_res = query_rag(rag_query, custom_api_key=custom_key)
+                    if rag_res:
+                        st.markdown("#### 💡 Grounded Maintenance Action Plan")
+                        st.write(rag_res["answer"])
+                        
+                        st.markdown("#### 📁 Supporting Technical Documentation (Citations)")
+                        for idx, chunk in enumerate(rag_res["retrieved_chunks"]):
+                            with st.expander(f"📄 {chunk['doc_name']} — Chunk {chunk['chunk_index']} (Relevance Score: {chunk.get('score', 0.0):.2f})"):
+                                st.markdown(f"```text\n{chunk['text']}\n```")
+                    else:
+                        st.error("Failed to generate intelligent maintenance plan due to RAG service exception.")
+
