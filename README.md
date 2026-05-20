@@ -1,234 +1,189 @@
-# opsFlow: AI-Powered Industrial Maintenance Intelligence System
+# opsFlow: Production-Grade Industrial Predictive Maintenance & Grounded RAG Intelligence System
 
-Welcome to **opsFlow**, an integrated enterprise intelligence system designed for predictive mechanical telemetry and automated operations support in manufacturing environments.
+Welcome to **opsFlow**, a production-grade AI system designed for real-time equipment telemetry diagnostics and grounded technical knowledge retrieval in manufacturing and industrial settings.
 
-## 1. Project Overview
-
-opsFlow is a unified industrial maintenance intelligence platform that combines predictive machinery diagnostics with grounded technical knowledge retrieval. The system employs high-fidelity machine learning to forecast mechanical breakdowns before they happen, while deploying a cognitive retrieval assistant to guide on-site engineers through safety, diagnostics, and repairs.
-
-Task 3 and Task 4 are directly integrated: Task 3 trains production predictive maintenance models and serializes the performance stats, hyperparameter states, and explainability metrics into a centralized database file named `model_summary.json`. Task 4's Retrieval-Augmented Generation (RAG) pipeline ingests this structured dataset as part of its technical knowledge base, allowing operators to query live ML model accuracy, precision, F1-scores, and diagnostic results conversationally.
+This codebase has been refactored from a monolithic demonstration script into an enterprise-ready, modular, decoupled architecture consisting of a **FastAPI REST Service**, an interactive **Streamlit Operator Console**, and a robust **Pytest QA automation suite**.
 
 ---
 
-## 2. Architecture Diagram (ASCII)
+## 1. System Architecture
 
 ```text
-AI4I 2020 Dataset
-      │
-      ▼
-┌─────────────────────────────────────┐
-│         TASK 3: ML PIPELINE         │
-│  v1 → v2 → v3 (production)          │
-│  Logistic Regression + Random Forest│
-│  SMOTE │ GridSearchCV │ SHAP │ MLflow│
-└──────────────┬──────────────────────┘
-               │ model_summary.json
-               ▼
-┌─────────────────────────────────────┐
-│       TASK 4: RAG ASSISTANT         │
-│  v1 → v2 → v3 (production)          │
-│  BM25 + Semantic │ Re-ranking       │
-│  ChromaDB │ Faithfulness Check      │
-└──────────────┬──────────────────────┘
-               │
-               ▼
-        Maintenance Q&A
-   grounded in docs + ML results
+                                    ┌──────────────────────┐
+                                    │  Telemetry Sensor    │
+                                    │  Stream / CSV Data   │
+                                    └──────────┬───────────┘
+                                               │
+                                               ▼
+                                    ┌──────────────────────┐
+                                    │   ML Pipeline &      │
+                                    │   Model Server       │
+                                    │ (RF / LR Classifier) │
+                                    └──────────┬───────────┘
+                                               │
+                                               ▼
+┌──────────────────────┐            ┌──────────────────────┐
+│  Technical Manuals   │            │   FastAPI REST API   │
+│ & model_summary.json │ ─────────> │   (API Gate Layer)   │
+└──────────┬───────────┘            └──────────┬───────────┘
+           │                                   ▲
+           ▼                                   │ HTTP
+┌──────────────────────┐                       │ Requests
+│    Hybrid Search     │                       ▼
+│ (BM25 + Chroma Vector│            ┌──────────────────────┐
+│   RRF Reranker)      │            │ Streamlit Operations │
+└──────────────────────┘            │      Dashboard       │
+                                    └──────────────────────┘
 ```
+
+The system splits into three distinct layers:
+1. **Core ML Diagnostics Engine**: Performs continuous feature engineering, SMOTE resampling, hyperparameter sweeps, MLflow tracking, and SHAP explainability calculations to classify equipment stability.
+2. **Hybrid RAG Knowledge Retrieval**: Ingests technical manuals and model metadata, building sliding window and semantic chunks, indexing them in ChromaDB and BM25, and fusing them via Reciprocal Rank Fusion (RRF) and Cross-Encoder re-ranking. Answer correctness is validated via a double-pass LLM faithfulness claim auditor.
+3. **Operations Console**: A client interface communicating exclusively via REST queries to the backend API, featuring real-time diagnostic dials, interactive chatbot panels with visual audit verifications, and ML performance metrics.
 
 ---
 
-## 3. Repository Structure
+## 2. Directory Layout
 
 ```text
 opsFlow/
-├── task3/
-│   ├── v1/         # Baseline: LR + RF, basic metrics
-│   ├── v2/         # + Feature engineering, SMOTE, CV, modular code
-│   ├── v3/         # + MLflow, GridSearchCV, SHAP, serialisation, Docker
-│   └── data/
-│       └── ai4i2020.csv
-├── task4/
-│   ├── v1/         # Baseline: FAISS, fixed chunking, Groq generation
-│   ├── v2/         # + ChromaDB, overlap chunking, grounding, CLI loop
-│   ├── v3/         # + Hybrid search, re-ranking, faithfulness check
-│   └── (docs in each version folder)
-├── run_all.py      # Single entry point: runs Task 3 v3 → Task 4 v3
-├── README.md
-└── requirements.txt
+├── api/                    # FastAPI REST Gateway Layer
+│   ├── routes/             # Feature-specific router paths
+│   │   ├── ml.py           # Predictions, model status, background retraining
+│   │   ├── query.py        # Conversational QA endpoints & cache clears
+│   │   └── system.py       # Health check, reindexing, retrieval log audits
+│   ├── main.py             # FastAPI entry point & lifespan model warming
+│   └── schemas.py          # Pydantic request & response validation contracts
+├── core/                   # Core configurations and global definitions
+│   ├── config.py           # Pydantic-Settings environmental parsing
+│   ├── constants.py        # ML thresholds and retrieval parameter limits
+│   └── security.py         # Rate limiters, HTML sanitizers, prompt injection firewalls
+├── data/                   # Raw telemetry sensor storage (e.g. ai4i2020.csv)
+├── docs/                   # Target technical manuals (.txt / .json) for RAG
+├── evaluation/             # RAG validation modules
+│   └── faithfulness.py     # Double-pass LLM claim auditor
+├── frontend/               # Streamlit Operator Dashboard
+│   ├── components/         # Modular layout views
+│   │   ├── chat_panel.py   # RAG conversational chatbot & audit logs
+│   │   ├── metrics_panel.py# MLOps performance plots & system admin center
+│   │   └── telemetry_panel.py # Simulated equipment failure diagnostic sliders
+│   ├── app.py              # Main dashboard entrypoint & style injectors
+│   └── state.py            # API request clients & state synchronization
+├── models/                 # Machinery Diagnostics Classifiers
+│   ├── pipeline.py         # Full hyperparameter sweep retraining entry point
+│   ├── preprocessing.py    # SMOTE, feature scaling, telemetry calculations
+│   └── training.py         # Stratified cross-validation and GridSearchCV tuning
+├── retrieval/              # RAG Indexing & Retrieval Pipelines
+│   ├── bm25.py             # Sparse keyword indexing (Okapi BM25)
+│   ├── cache.py            # Exact & semantic vector query caching
+│   ├── chunker.py          # Semantic & sliding window chunk divisions
+│   ├── embedder.py         # Dense sentence embedding models
+│   ├── hybrid.py           # Reciprocal Rank Fusion (RRF) combiner
+│   └── reranker.py         # Cross-Encoder second-pass ranking
+├── tests/                  # Pytest QA Test Suite
+│   ├── conftest.py         # Reusable mock fixtures and client builders
+│   ├── test_api.py         # Integration routes validations
+│   ├── test_ml.py          # Preprocessing formulas and fit operations
+│   ├── test_retrieval.py   # Sentence splitting, RRF ranks, and cache hits
+│   └── test_security.py    # XSS blockages, firewalls, and token rate limits
+├── utils/                  # Shared system helpers
+│   └── logger.py           # Standard structured logging output
+├── docker-compose.yml      # Orchestrates local API and dashboard images
+├── Dockerfile.backend      # Multi-stage image build for FastAPI REST API
+├── Dockerfile.frontend     # Multi-stage image build for Streamlit Console
+├── Makefile                # Automation hooks for operations and QA
+└── requirements.txt        # System library declarations
 ```
 
 ---
 
-## 4. Versioning Strategy
+## 3. Installation & Local Setup
 
-This project follows an iterative versioning methodology, moving systematically from standard baseline models (v1) through robust feature-engineered codebases (v2) up to enterprise-grade production architectures (v3) for both predictive modeling and information retrieval tasks.
-
-### Task 3: Equipment Failure Prediction
-- **v1**: Load dataset, encode features, drop data leakage columns, train LR + RF, evaluate with ROC-AUC and confusion matrix, overfitting analysis.
-- **v2**: Engineered features (`temp_diff`, `power`, `wear_torque_ratio`), SMOTE for class imbalance, 5-fold stratified CV, feature importance and PR curve plots, modular `.py` structure.
-- **v3**: MLflow experiment tracking, GridSearchCV hyperparameter tuning, SHAP explainability (beeswarm + force plots), joblib model serialisation, `load_and_predict()` demo, Dockerfile.
-
-### Task 4: Retrieval-Based AI Assistant
-- **v1**: Fixed-size chunking, sentence-transformers embeddings, FAISS vector store, Groq LLM generation, chunk source logging.
-- **v2**: Overlap chunking (300 words, 50 overlap), persistent ChromaDB, strict grounding prompt, rich source logging, multi-query CLI loop.
-- **v3**: BM25 keyword index, hybrid retrieval with RRF fusion, cross-encoder re-ranking, faithfulness audit via second Groq call, extended logging.
-
----
-
-## 5. Setup Instructions
+### System Prerequisites
+Ensure Python 3.10+ is installed on your local host.
 
 ```bash
-# Clone and enter project
-git clone <repo-url>
+# Clone the repository
+git clone <repository-url>
 cd opsFlow
 
-# Create and activate virtual environment
+# Create a clean virtual environment
 python3 -m venv venv
-source venv/bin/activate          # Mac/Linux
-# venv\Scripts\activate           # Windows
+source venv/bin/activate
 
-# Install all dependencies
+# Install requirements
 pip install -r requirements.txt
-
-# Set Groq API key (required for Task 4)
-export GROQ_API_KEY='your-key-here'
-# Get free key at: https://console.groq.com
 ```
 
-### Dataset Note
-```text
-Task 3 uses the AI4I 2020 Predictive Maintenance dataset.
-Place it at: task3/data/ai4i2020.csv
-Download from: https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset
+### Configuration Setup
+Copy `.env.example` to `.env` and fill in your Groq API credentials:
+```bash
+cp .env.example .env
 ```
+*Provide your API key under `GROQ_API_KEY` to enable active LLM conversational QA generation and faithfulness auditing.*
 
 ---
 
-## 6. How to Run
+## 4. Operational Commands (Makefile)
 
-### Option A — Full pipeline + Web UI (recommended)
-Runs Task 3 training, Task 4 demo queries, then launches the Streamlit
-web interface where you can ask your own questions interactively.
+Use the provided `Makefile` to run system routines:
+
+- **Install Dependencies**:
+  ```bash
+  make install
+  ```
+- **Run the Pytest Test Suite**:
+  ```bash
+  make test
+  ```
+- **Train and Serialize ML Models**:
+  ```bash
+  make train
+  ```
+- **Launch Backend REST API (Port 8000)**:
+  ```bash
+  make run-backend
+  ```
+- **Launch Frontend Streamlit Console (Port 8501)**:
+  ```bash
+  make run-frontend
+  ```
+- **Clean Bytecode & Cache Directories**:
+  ```bash
+  make clean
+  ```
+
+---
+
+## 5. Deployment with Docker Compose
+
+To build and spin up the backend and frontend in local containers:
 
 ```bash
-cd opsFlow/
-python run_all.py
-# Streamlit UI opens automatically at http://localhost:8501
-# Press Ctrl+C to stop
+# Build the Docker images
+make docker-build
+
+# Launch the compose services
+make docker-up
 ```
+- The backend API documentation will be available at [http://localhost:8000/docs](http://localhost:8000/docs).
+- The Operator Console will run at [http://localhost:8501](http://localhost:8501).
 
-### Option B — Interactive RAG assistant (ask your own questions)
-Runs Task 4 v3 directly with a live CLI loop.
-Type any maintenance question and get a grounded answer with faithfulness score.
+---
 
+## 6. QA Test Suite Summary
+
+The system is validated by a thorough automation suite located in `tests/`:
+
+- **`test_ml.py`**: Asserts custom telemetry calculation formulas (e.g. Calculated Power, Wear-Torque Ratio) and splits.
+- **`test_retrieval.py`**: Asserts sentence boundary divisions, keyword lookups, RRF ranking prioritization, and cache hit checks.
+- **`test_api.py`**: Verifies mock route requests, prediction validations, and model status queries.
+- **`test_security.py`**: Verifies that HTML code blocks are escaped and that prompt injection vectors are identified and blocked by the rate limiter.
+
+Run all tests instantly:
 ```bash
-export GROQ_API_KEY='your-key-here'
-cd task4/v3/
-python main.py
-```
-
-### Option C — Run individual task versions
-```bash
-# Task 3 versions
-cd task3/v1 && python stage2_preprocessing.py   # baseline preprocessing
-cd task3/v2 && python main.py                   # feature engineering + CV
-cd task3/v3 && python main.py                   # full production pipeline
-
-# Task 4 versions
-cd task4/v1 && python rag_pipeline.py           # baseline FAISS RAG
-cd task4/v2 && python main.py                   # ChromaDB + overlap chunking
-cd task4/v3 && python main.py                   # hybrid search + faithfulness
-```
-
-### Option D — Docker (Task 3 v3 only)
-```bash
-cd task3/v3
-docker build -t task3-v3 .
-docker run -v $(pwd)/../data:/app/data task3-v3
-```
-
-### Option E — Streamlit Web UI
-```bash
-cd opsFlow/
-streamlit run streamlit_app.py
-# Opens at http://localhost:8501
-```
-
-> **Quick rule:** Use `run_all.py` to see the full system. Use `task4/v3/main.py` to talk to the assistant.
-
----
-
-## 7. Sample Output
-
-### Task 3 v3 Key Outputs
-```text
-Logistic Regression Best Parameters: {'C': 1, 'solver': 'lbfgs'}
-Random Forest Best Parameters: {'max_depth': None, 'min_samples_leaf': 1, 'n_estimators': 100}
-Random Forest Best CV F1 Score: 0.8094
-Tuned Random Forest AP: 0.8512
-MLflow Run ID: 5d29d5924ac54a368eb52a0956af5742
-```
-
-### Integration Output
-```text
-[INTEGRATION] Copied model_summary.json → task4/v2/docs/
-[INTEGRATION] Copied model_summary.json → task4/v3/docs/
-```
-
-### Task 4 v3 Key Outputs
-```text
-[Hybrid] RRF scores computed for 10 candidates
-[Reranker] Chunk from equipment_manual.txt moved rank 7 → rank 1
-Generated Grounded Answer: ...
-Faithfulness Check:
-  Faithful : Yes
-  Score    : 1.00
-  Verdict  : All claims are directly supported by the maintenance manual.
+make test
 ```
 
 ---
-
-## 8. Key Design Decisions & Assumptions
-
-- **Sub-Failure Column Removal (Data Leakage):** The columns `TWF`, `HDF`, `PWF`, `OSF`, and `RNF` specify exact failure modes which are logical components of the target variable `Machine failure`. Retaining them triggers total target leakage, leading to artificially perfect training metrics that fail completely during live inference. 
-- **SMOTE Boundary Restrictions:** Oversampling with SMOTE is strictly constrained to the training splits, leaving test/validation splits completely untouched. Applying SMOTE before splitting or to test sets leaks synthetic coordinates into test bounds, causing severely inflated, unrealistic model evaluations.
-- **Precision-Recall Curve over ROC-AUC:** Given the extreme class imbalance in machinery failures (only 3.39% representation), ROC-AUC yields over-optimistic evaluations by using False Positive Rates dominated by the massive negative class. Precision-Recall curves capture exact model performance differences on minority failure instances.
-- **BM25 + Semantic Hybrid Search Synergy:** Lexical BM25 search excels at exact-match keyword indexing (such as error codes, technical IDs, or specific model parameters), while semantic vector space search captures abstract conceptual questions. Fusing them with RRF leverages both advantages.
-- **Post-Retrieval Cross-Encoder Re-Ranking:** Bi-encoders process queries and documents independently to scale retrieval rapidly. The computationally heavy cross-encoder computes full attention across queries and candidate text sequences, and is placed as a second-pass re-ranker to maximize accuracy without compromising real-time search latencies.
-- **Second-Pass LLM Faithfulness Audit:** Implementing a separate LLM pass dedicated strictly to checking generated claims against the retrieved manual chunks separates contextual answer generation from verification logic, catching hallucinations before they reach operators.
-- **Groq LPU Selection:** Groq’s custom LPU hardware delivers ultra-fast token generation speeds (exceeding 500 tokens/sec), facilitating real-time interactive Q&A. Its high-availability free tier supports early development without licensing bottlenecks.
-
----
-
-## 9. Production Improvements
-
-- **Remote MLflow Tracking Server:** Transition from the local filesystem store to a centralized Postgres backend database and an S3 artifact bucket to enable collaboration across multiple engineering teams.
-- **Metadata Filtering:** Integrate database-level metadata partitioning in ChromaDB to restrict searches to specific machinery categories, documents, or plant regions prior to vector matching.
-- **Streaming UI Outputs:** Refactor the generator pipeline to stream token outputs dynamically to the terminal or web dashboard to minimize user-perceived latencies.
-- **Automated Retraining Orchestrator:** Deploy Airflow or Prefect DAGs to trigger retraining and model deployments dynamically as new sensor streams drift from initial training ranges.
-- **Assistant Authentication Layer:** Enforce RBAC (Role-Based Access Control) to verify technician credentials before serving high-voltage safety instructions or operating manuals.
-- **Faithfulness Threshold Guardrails:** Build an automated system that blocks and re-generates LLM answers scoring below 0.70 in the auditor, ensuring safety-critical correctness in physical plants.
-
----
-
-## 10. Dependencies
-
-| Library | Purpose |
-| :--- | :--- |
-| **pandas, numpy** | Data manipulation and telemetry array transformations |
-| **scikit-learn** | Standard ML classifiers, cross-validation splits, and parameter tuning |
-| **imbalanced-learn** | SMOTE oversampling algorithm implementation for class balancing |
-| **matplotlib** | Plotting of diagnostic visual assets (feature importance, PR curve, etc.) |
-| **shap** | Unified game-theoretic SHAP explainability calculations and plots |
-| **mlflow** | Parameter tracking, metrics logging, and artifact serialization |
-| **joblib** | Model and transformer pipeline serialization to local disk |
-| **sentence-transformers** | Dense sentence-level embedding matrix and cross-encoder re-ranking calculations |
-| **faiss-cpu** | Fast memory-mapped dense vector similarity search |
-| **chromadb** | Persistent, SQLite-backed serverless vector database engine |
-| **rank-bm25** | Lexical TF-IDF derived keyword indexing algorithm |
-| **groq** | High-speed LLM client for answer generation and claim audits |
-
----
-
-*This project is submitted as an AI Developer Technical Assessment. Created and maintained for industrial-grade predictive analytics.*
+*Created and maintained for industrial-grade predictive analytics and grounded operations assistance.*

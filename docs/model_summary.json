@@ -1,0 +1,17 @@
+{
+  "run_timestamp": "2026-05-20T07:48:15.477869",
+  "best_model": "Random Forest",
+  "best_f1": 0.8094,
+  "best_roc_auc": 0.9669,
+  "best_params": {
+    "max_depth": null,
+    "min_samples_leaf": 1,
+    "n_estimators": 100
+  },
+  "top_features": [
+    "Rotational speed [rpm]",
+    "Torque [Nm]",
+    "power"
+  ],
+  "failure_rate_in_dataset": 0.0339
+}

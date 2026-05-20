@@ -1,22 +1,10 @@
 """
-run_all.py — Full Pipeline Runner + UI Launcher
-=================================================
-Runs the complete opsFlow system in sequence:
-  1. Task 3 v3: Trains ML models, saves model_summary.json
-  2. Integration: Copies model_summary.json into Task 4 knowledge base
-  3. Task 4 v3: Runs 5 automated demo queries
-  4. Streamlit UI: Launches interactive web interface at localhost:8501
-
-USE THIS WHEN:
-  - You want to run the full system in one command
-  - You want the interactive web UI for asking your own questions
-
-STOPPING:
-  - Press Ctrl+C once to stop the Streamlit server and exit cleanly
-
-Usage:
-  cd opsFlow/
-  python run_all.py
+run_all.py — Production-Grade Pipeline Runner + Service Orchestrator
+===================================================================
+Orchestrates and launches:
+  1. ML Retraining Pipeline (models/pipeline.py) -> hyperparameter tuning & SHAP plotting
+  2. FastAPI Uvicorn Server (api/main.py on port 8000) -> lifespan warmups, DB builds
+  3. Streamlit Operator Console (frontend/app.py on port 8501) -> interactive operations UI
 """
 
 import os
@@ -25,12 +13,12 @@ import time
 import shutil
 import subprocess
 import webbrowser
+from pathlib import Path
 
-def load_env_file():
-    # Search for .env file in the current directory
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    env_path = os.path.join(base_dir, ".env")
-    if os.path.exists(env_path):
+def load_env_file(base_dir: Path):
+    """Loads env variables from root .env if present."""
+    env_path = base_dir / ".env"
+    if env_path.exists():
         with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -42,97 +30,92 @@ def load_env_file():
                         os.environ[k] = v
 
 def main():
-    load_env_file()
-    print("=" * 60)
-    print("opsFlow — AI Maintenance Intelligence System")
-    print("=" * 60)
+    base_dir = Path(__file__).resolve().parent
+    load_env_file(base_dir)
     
-    # 1. Determine directories relative to run_all.py
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    task3_v3_dir = os.path.join(base_dir, "task3", "v3")
-    task4_v3_dir = os.path.join(base_dir, "task4", "v3")
-    task4_v2_dir = os.path.join(base_dir, "task4", "v2")
-    task4_v1_dir = os.path.join(base_dir, "task4", "v1")
+    # Determine the python binary inside the virtual environment
+    venv_python = base_dir / "venv" / "bin" / "python"
+    if not venv_python.exists():
+        venv_python = Path(sys.executable) # Fallback to active runner binary
+        
+    print("=" * 65)
+    print("opsFlow - Production-Grade Deployment Orchestrator")
+    print("=" * 65)
     
-    # 2. Part 1: Run Task 3 v3 ML Training
-    print("\n[1/3] Running Task 3: Equipment Failure Prediction...")
-    task3_process = subprocess.run(
-        [sys.executable, "main.py"],
-        cwd=task3_v3_dir,
+    # Step 1: Run Machine Learning Pipeline to train, plot and serialize
+    print("\n[Step 1/3] Triggering ML training & diagnostic visualization pipeline...")
+    ml_run = subprocess.run(
+        [str(venv_python), "-m", "models.pipeline"],
+        cwd=str(base_dir),
+        env=os.environ.copy()
+    )
+    if ml_run.returncode != 0:
+        print("[ERROR] Machine learning pipeline failed. Halting startup.")
+        sys.exit(ml_run.returncode)
+        
+    # Step 2: Ensure model_summary.json is in docs/ directory for RAG indexing
+    summary_src = base_dir / "models" / "artifacts" / "model_summary.json"
+    docs_dir = base_dir / "docs"
+    docs_dir.mkdir(exist_ok=True)
+    summary_dest = docs_dir / "model_summary.json"
+    
+    if summary_src.exists():
+        shutil.copy(summary_src, summary_dest)
+        print(f"[Integration] Synced model_summary.json -> {summary_dest}")
+    else:
+        print(f"[Warning] model_summary.json not found at {summary_src}. Proceeding with legacy/default configs.")
+
+    # Step 3: Boot FastAPI REST Service
+    print("\n[Step 2/3] Spinning up FastAPI Backend Service on port 8000...")
+    backend_process = subprocess.Popen(
+        [str(venv_python), "-m", "api.main"],
+        cwd=str(base_dir),
+        env=os.environ.copy(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True
+    )
+    
+    # Wait for backend to print startup message or warm models
+    print("Initializing backend and warming retrieval models", end="", flush=True)
+    time.sleep(5)
+    print(" Ready!")
+    
+    # Step 4: Boot Streamlit Operator Interface
+    print("\n[Step 3/3] Spinning up Streamlit Operations Console on port 8501...")
+    frontend_process = subprocess.Popen(
+        [str(venv_python), "-m", "streamlit", "run", "frontend/app.py",
+         "--server.port", "8501",
+         "--server.address", "0.0.0.0",
+         "--browser.gatherUsageStats", "false"],
+        cwd=str(base_dir),
         env=os.environ.copy()
     )
     
-    if task3_process.returncode != 0:
-        print("\n[ERROR] Task 3 ML Training failed. Aborting RAG execution.")
-        sys.exit(task3_process.returncode)
-        
-    # 3. Copy model_summary.json into Task 4 v3 and v2 docs/
-    model_summary_src  = os.path.join(task3_v3_dir, "outputs", "model_summary.json")
-    model_summary_v2   = os.path.join(base_dir, "task4", "v2", "docs", "model_summary.json")
-    model_summary_v3   = os.path.join(base_dir, "task4", "v3", "docs", "model_summary.json")
-
-    if os.path.exists(model_summary_src):
-        # Ensure destination directories exist before copying
-        os.makedirs(os.path.dirname(model_summary_v2), exist_ok=True)
-        os.makedirs(os.path.dirname(model_summary_v3), exist_ok=True)
-        shutil.copy(model_summary_src, model_summary_v2)
-        print(f"[INTEGRATION] Copied model_summary.json → task4/v2/docs/")
-        shutil.copy(model_summary_src, model_summary_v3)
-        print(f"[INTEGRATION] Copied model_summary.json → task4/v3/docs/")
-    else:
-        print(f"[WARNING] model_summary.json not found at {model_summary_src} — skipping copy")
-        
-    # 4. Part 2: Run Task 4 v3 RAG Assistant (Non-interactive automated queries)
-    print("\n[2/3] Running Task 4: RAG Maintenance Assistant (v3 Hybrid Search)...")
-    task4_process = subprocess.run(
-        [sys.executable, "main.py"],
-        cwd=os.path.join(base_dir, "task4", "v3"),
-        env=os.environ.copy(),
-        stdin=subprocess.DEVNULL,
-        stdout=sys.stdout,
-        stderr=sys.stderr
-    )
+    # Wait for streamlit server to launch
+    time.sleep(3)
     
-    if task4_process.returncode != 0:
-        print("\n[ERROR] Task 4 RAG Assistant failed.")
-        sys.exit(task4_process.returncode)
-        
-    # 5. Part 3: Launch Streamlit Web UI
-    print("\n" + "=" * 60)
-    print("opsFlow — Launching Streamlit UI...")
-    print("=" * 60)
-
+    print("\n" + "=" * 65)
+    print("✅ System Deployment Successful!")
+    print("FastAPI Backend:     http://localhost:8000")
+    print("Interactive Web UI:  http://localhost:8501")
+    print("Press Ctrl+C to terminate services cleanly.")
+    print("=" * 65 + "\n")
+    
+    webbrowser.open("http://localhost:8501")
+    
     try:
-        streamlit_process = subprocess.Popen(
-            [sys.executable, "-m", "streamlit", "run", "streamlit_app.py",
-             "--server.headless", "true",
-             "--browser.gatherUsageStats", "false",
-             "--server.port", "8501"],
-            cwd=base_dir,
-            env=os.environ.copy()
-        )
-        
-        # Wait for Streamlit to fully start before opening browser
-        print("Starting Streamlit server", end="", flush=True)
-        for _ in range(5):
-            time.sleep(1)
-            print(".", end="", flush=True)
-        print(" Ready!")
-        
-        print("\n✅ Streamlit UI is running at: http://localhost:8501")
-        print("Press Ctrl+C to stop the server.\n")
-        
-        # Open browser automatically after server is ready
-        webbrowser.open("http://localhost:8501")
-        
-        # Keep run_all.py alive until user presses Ctrl+C
-        streamlit_process.wait()
-
+        # Keep process running
+        frontend_process.wait()
     except KeyboardInterrupt:
-        print("\n[run_all.py] Stopping Streamlit server...")
-        streamlit_process.terminate()
-        streamlit_process.wait()
-        print("[run_all.py] Server stopped. Goodbye!")
+        print("\nShutting down opsFlow services...")
+    finally:
+        # Graceful shutdown of backend and frontend processes
+        frontend_process.terminate()
+        backend_process.terminate()
+        frontend_process.wait()
+        backend_process.wait()
+        print("All processes cleaned up. Have a great day!")
 
 if __name__ == "__main__":
     main()
