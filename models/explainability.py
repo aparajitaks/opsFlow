@@ -1,11 +1,15 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import shap
 import numpy as np
 import os
 import pandas as pd
 from core.config import settings
+
+try:
+    import shap
+except ImportError:
+    shap = None
 
 def explain_model(model, X_test: pd.DataFrame, feature_names: list, y_test: pd.Series, output_dir=None):
     """
@@ -17,6 +21,10 @@ def explain_model(model, X_test: pd.DataFrame, feature_names: list, y_test: pd.S
     os.makedirs(output_dir, exist_ok=True)
     print("\n--- Generating SHAP Explainability Plots ---")
     
+    if shap is None:
+        print("Warning: SHAP is not installed. Skipping explainability plots.")
+        return
+        
     try:
         # Initialize TreeExplainer
         explainer = shap.TreeExplainer(model)

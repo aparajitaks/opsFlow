@@ -2,10 +2,30 @@ import sys
 import os
 import numpy as np
 import joblib
-import mlflow
 import json
 import datetime
 import shutil
+
+try:
+    import mlflow
+except ImportError:
+    class DummyRun:
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc_val, exc_tb): pass
+        @property
+        def info(self):
+            class DummyInfo:
+                run_id = "local-dryrun"
+            return DummyInfo()
+
+    class DummyMLflow:
+        def set_tracking_uri(self, *args, **kwargs): pass
+        def set_experiment(self, *args, **kwargs): pass
+        def start_run(self, *args, **kwargs): return DummyRun()
+        def log_params(self, *args, **kwargs): pass
+        def log_metrics(self, *args, **kwargs): pass
+        def set_tags(self, *args, **kwargs): pass
+    mlflow = DummyMLflow()
 
 from core.config import settings
 from core.constants import RANDOM_STATE, CONTINUOUS_COLS
