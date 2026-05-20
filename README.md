@@ -1,106 +1,87 @@
-# opsFlow: Production-Grade Industrial Predictive Maintenance & Grounded RAG Intelligence System
+# 🔧 opsFlow: Standalone RAG Intelligence & Predictive Maintenance Diagnostic System
 
-Welcome to **opsFlow**, a production-grade AI system designed for real-time equipment telemetry diagnostics and grounded technical knowledge retrieval in manufacturing and industrial settings.
+Welcome to **opsFlow**, an enterprise-grade, fully self-contained AI system designed for real-time equipment telemetry diagnostics and grounded technical knowledge retrieval in manufacturing and industrial settings.
 
-This codebase has been refactored from a monolithic demonstration script into an enterprise-ready, modular, decoupled architecture consisting of a **FastAPI REST Service**, an interactive **Streamlit Operator Console**, and a robust **Pytest QA automation suite**.
-
----
-
-## 1. System Architecture
-
-```text
-                                    ┌──────────────────────┐
-                                    │  Telemetry Sensor    │
-                                    │  Stream / CSV Data   │
-                                    └──────────┬───────────┘
-                                               │
-                                               ▼
-                                    ┌──────────────────────┐
-                                    │   ML Pipeline &      │
-                                    │   Model Server       │
-                                    │ (RF / LR Classifier) │
-                                    └──────────┬───────────┘
-                                               │
-                                               ▼
-┌──────────────────────┐            ┌──────────────────────┐
-│  Technical Manuals   │            │   FastAPI REST API   │
-│ & model_summary.json │ ─────────> │   (API Gate Layer)   │
-└──────────┬───────────┘            └──────────┬───────────┘
-           │                                   ▲
-           ▼                                   │ HTTP
-┌──────────────────────┐                       │ Requests
-│    Hybrid Search     │                       ▼
-│ (BM25 + Chroma Vector│            ┌──────────────────────┐
-│   RRF Reranker)      │            │ Streamlit Operations │
-└──────────────────────┘            │      Dashboard       │
-                                    └──────────────────────┘
-```
-
-The system splits into three distinct layers:
-1. **Core ML Diagnostics Engine**: Performs continuous feature engineering, SMOTE resampling, hyperparameter sweeps, MLflow tracking, and SHAP explainability calculations to classify equipment stability.
-2. **Hybrid RAG Knowledge Retrieval**: Ingests technical manuals and model metadata, building sliding window and semantic chunks, indexing them in ChromaDB and BM25, and fusing them via Reciprocal Rank Fusion (RRF) and Cross-Encoder re-ranking. Answer correctness is validated via a double-pass LLM faithfulness claim auditor.
-3. **Operations Console**: A client interface communicating exclusively via REST queries to the backend API, featuring real-time diagnostic dials, interactive chatbot panels with visual audit verifications, and ML performance metrics.
+This application has been engineered to run as a **single, unified, standalone Streamlit application** fully optimized for CPU-only nodes and seamless, robust **Streamlit Cloud deployments** with zero external service or backend dependencies.
 
 ---
 
-## 2. Directory Layout
+## 🚀 Key Architectural Innovations
+
+### 1. Direct In-Process Execution
+No complex microservice networking or broken localhost APIs. The frontend and backend layers are fused directly inside a single Python process space. The interactive dashboard invokes the RAG pipeline and machine failure classifier via optimized, thread-safe Python interfaces.
+
+### 2. High-Performance Hybrid Retrieval & Reranking
+- **Keyword Search (Sparse)**: Exact code search and manual indexing via `rank-bm25` (Okapi BM25).
+- **Dense Vector Search**: Semantic context querying via `ChromaDB` and the HuggingFace `all-MiniLM-L6-v2` dense embedder.
+- **Fusion & Reranking**: Reciprocal Rank Fusion (RRF) prioritizes multi-channel hits, followed by a second-pass re-ranking using an `ms-marco-MiniLM-L-6-v2` Cross-Encoder.
+- **Double-Pass Audit**: Responses are validated via a double-pass LLM claim auditor that flags factual hallucinations, rendering instant visual metrics of answer confidence.
+
+### 3. Machine Learning Equipment Telemetry Diagnostics
+- **Real-time Feature Engineering**: Calculates live equipment indices like delta temperature (ΔT), rotational power, and torque-wear ratios directly from input sliders.
+- **Inference & Explainability**: Predicts machine breakdown states and likelihoods using tuned, serialized Random Forest and Logistic Regression models.
+- **Interactive MLOps Tab**: Allows operators to trigger background retraining sweeps and view evaluation curves (ROC-AUC, Precision-Recall) and local explainability (SHAP).
+
+### 4. Recruiter-Ready UI Aesthetics
+- **Typography**: Custom Google Font integration using modern 'Outfit' sans-serif.
+- **Design System**: Harmonious HSL colors, premium glassmorphism, and responsive CSS containers.
+- **Smooth Micro-Animations**: Native Streamlit elements enhanced with sleek dark-mode custom-themed cards.
+
+---
+
+## 🛠️ Unified System Directory Structure
 
 ```text
 opsFlow/
-├── api/                    # FastAPI REST Gateway Layer
-│   ├── routes/             # Feature-specific router paths
-│   │   ├── ml.py           # Predictions, model status, background retraining
-│   │   ├── query.py        # Conversational QA endpoints & cache clears
-│   │   └── system.py       # Health check, reindexing, retrieval log audits
-│   ├── main.py             # FastAPI entry point & lifespan model warming
-│   └── schemas.py          # Pydantic request & response validation contracts
+├── .streamlit/             # Streamlit configuration settings & styling
+│   └── config.toml         # Custom fonts, headless options & dark mode
 ├── core/                   # Core configurations and global definitions
-│   ├── config.py           # Pydantic-Settings environmental parsing
-│   ├── constants.py        # ML thresholds and retrieval parameter limits
-│   └── security.py         # Rate limiters, HTML sanitizers, prompt injection firewalls
-├── data/                   # Raw telemetry sensor storage (e.g. ai4i2020.csv)
-├── docs/                   # Target technical manuals (.txt / .json) for RAG
-├── evaluation/             # RAG validation modules
-│   └── faithfulness.py     # Double-pass LLM claim auditor
-├── frontend/               # Streamlit Operator Dashboard
+│   ├── config.py           # Environmental settings parser
+│   ├── constants.py        # ML thresholds and RAG parameter bounds
+│   └── security.py         # Rate limiters, HTML sanitizers & prompt-injection firewalls
+├── data/                   # Raw telemetry sensor storage (ai4i2020.csv)
+├── docs/                   # Technical manuals & equipment specs for RAG ingestion
+├── evaluation/             # Grounding validation modules
+│   └── faithfulness.py     # Double-pass LLM claim auditor (factual checker)
+├── frontend/               # Streamlit Modular Interface
 │   ├── components/         # Modular layout views
-│   │   ├── chat_panel.py   # RAG conversational chatbot & audit logs
-│   │   ├── metrics_panel.py# MLOps performance plots & system admin center
+│   │   ├── chat_panel.py   # RAG conversational chatbot & audit cards
+│   │   ├── metrics_panel.py# MLOps performance plots & reindexing console
 │   │   └── telemetry_panel.py # Simulated equipment failure diagnostic sliders
 │   ├── app.py              # Main dashboard entrypoint & style injectors
-│   └── state.py            # API request clients & state synchronization
+│   └── state.py            # Direct-in-process state controllers & log tailers
 ├── models/                 # Machinery Diagnostics Classifiers
-│   ├── pipeline.py         # Full hyperparameter sweep retraining entry point
-│   ├── preprocessing.py    # SMOTE, feature scaling, telemetry calculations
-│   └── training.py         # Stratified cross-validation and GridSearchCV tuning
-├── retrieval/              # RAG Indexing & Retrieval Pipelines
+│   ├── pipeline.py         # Hyperparameter CV sweep and tuning execution
+│   ├── preprocessing.py    # Feature engineering formulas & SMOTE balance
+│   └── training.py         # Stratified cross-validation model tuning
+├── retrieval/              # RAG Search & Cache Pipelines
 │   ├── bm25.py             # Sparse keyword indexing (Okapi BM25)
-│   ├── cache.py            # Exact & semantic vector query caching
-│   ├── chunker.py          # Semantic & sliding window chunk divisions
-│   ├── embedder.py         # Dense sentence embedding models
+│   ├── cache.py            # Vector-similarity query caching (Exact & Semantic)
+│   ├── chunker.py          # Sliding-window & semantic sentence chunking
+│   ├── embedder.py         # Dense sentence embedding pipeline
 │   ├── hybrid.py           # Reciprocal Rank Fusion (RRF) combiner
 │   └── reranker.py         # Cross-Encoder second-pass ranking
 ├── tests/                  # Pytest QA Test Suite
-│   ├── conftest.py         # Reusable mock fixtures and client builders
-│   ├── test_api.py         # Integration routes validations
-│   ├── test_ml.py          # Preprocessing formulas and fit operations
+│   ├── conftest.py         # Reusable mock fixtures
+│   ├── test_ml.py          # Telemetry calculations and fit operations
 │   ├── test_retrieval.py   # Sentence splitting, RRF ranks, and cache hits
 │   └── test_security.py    # XSS blockages, firewalls, and token rate limits
-├── utils/                  # Shared system helpers
-│   └── logger.py           # Standard structured logging output
-├── docker-compose.yml      # Orchestrates local API and dashboard images
-├── Dockerfile.backend      # Multi-stage image build for FastAPI REST API
-├── Dockerfile.frontend     # Multi-stage image build for Streamlit Console
-├── Makefile                # Automation hooks for operations and QA
-└── requirements.txt        # System library declarations
+├── utils/                  # Structured logging helpers
+│   └── logger.py           # Performance and RAG audit log writer
+├── Dockerfile              # Unified single-stage image for production
+├── Makefile                # Single-process operational command hooks
+├── packages.txt            # System-level graphics packages for Streamlit Cloud
+├── requirements.txt        # CPU-only optimized requirements (no CUDA/Triton)
+├── run_all.py              # One-command developer pipeline initializer
+└── streamlit_app.py        # Root entrypoint compatibility redirect layer
 ```
 
 ---
 
-## 3. Installation & Local Setup
+## ⚡ Setup & Local Operations
 
-### System Prerequisites
-Ensure Python 3.10+ is installed on your local host.
+### 1. Prerequisites
+Ensure Python 3.10 to 3.12 is installed on your local machine.
 
 ```bash
 # Clone the repository
@@ -111,74 +92,48 @@ cd opsFlow
 python3 -m venv venv
 source venv/bin/activate
 
-# Install requirements
-pip install -r requirements.txt
+# Install CPU-optimized requirements
+make install
 ```
 
-### Configuration Setup
+### 2. Configure Environment
 Copy `.env.example` to `.env` and fill in your Groq API credentials:
 ```bash
 cp .env.example .env
 ```
-*Provide your API key under `GROQ_API_KEY` to enable active LLM conversational QA generation and faithfulness auditing.*
+*Provide your key under `GROQ_API_KEY` to enable active LLM conversational QA generation and claim auditing.*
 
----
+### 3. Commands & Execution
+Use the provided `Makefile` to instantly manage operations:
 
-## 4. Operational Commands (Makefile)
-
-Use the provided `Makefile` to run system routines:
-
-- **Install Dependencies**:
-  ```bash
-  make install
-  ```
-- **Run the Pytest Test Suite**:
+- **Run unit, integration, and security tests**:
   ```bash
   make test
   ```
-- **Train and Serialize ML Models**:
+- **Train models & export evaluation plots**:
   ```bash
   make train
   ```
-- **Launch Backend REST API (Port 8000)**:
+- **Run the application locally**:
   ```bash
-  make run-backend
+  make run
   ```
-- **Launch Frontend Streamlit Console (Port 8501)**:
+- **Initialize training + run the application in one step**:
   ```bash
-  make run-frontend
+  python run_all.py
   ```
-- **Clean Bytecode & Cache Directories**:
+- **Clean cached files & bytecode**:
   ```bash
   make clean
   ```
 
 ---
 
-## 5. Deployment with Docker Compose
-
-To build and spin up the backend and frontend in local containers:
-
-```bash
-# Build the Docker images
-make docker-build
-
-# Launch the compose services
-make docker-up
-```
-- The backend API documentation will be available at [http://localhost:8000/docs](http://localhost:8000/docs).
-- The Operator Console will run at [http://localhost:8501](http://localhost:8501).
-
----
-
-## 6. QA Test Suite Summary
-
-The system is validated by a thorough automation suite located in `tests/`:
-
-- **`test_ml.py`**: Asserts custom telemetry calculation formulas (e.g. Calculated Power, Wear-Torque Ratio) and splits.
-- **`test_retrieval.py`**: Asserts sentence boundary divisions, keyword lookups, RRF ranking prioritization, and cache hit checks.
-- **`test_api.py`**: Verifies mock route requests, prediction validations, and model status queries.
-- **`test_security.py`**: Verifies that HTML code blocks are escaped and that prompt injection vectors are identified and blocked by the rate limiter.
+## 📈 Quality Assurance (QA) & Robustness
+The application enforces strict software engineering standards verified by `pytest`:
+- **Accuracy**: Verifies customized mathematical feature calculations and preprocessing formulas.
+- **Reliability**: Validates sentence segmentation, hybrid RRF priority rankings, and semantic cache hit checks.
+- **Security**: Asserts blockages against HTML script tag cross-site scripting (XSS), prompt-injection bypass instructions, and rate limit bucket capacities.
 
 Run all tests instantly:
 ```bash
@@ -186,4 +141,4 @@ make test
 ```
 
 ---
-*Created and maintained for industrial-grade predictive analytics and grounded operations assistance.*
+*Architected for industrial-grade predictive analytics and grounded operations assistance, optimized for instant cloud review.*

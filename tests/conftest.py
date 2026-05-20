@@ -3,19 +3,11 @@ import sys
 import tempfile
 import pytest
 import pandas as pd
-from fastapi.testclient import TestClient
 
 # Ensure workspace root is in path for tests
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from api.main import app
 from core.config import settings
-
-@pytest.fixture
-def api_client():
-    """Returns a FastAPI TestClient instance."""
-    with TestClient(app) as client:
-        yield client
 
 @pytest.fixture
 def mock_telemetry_data():

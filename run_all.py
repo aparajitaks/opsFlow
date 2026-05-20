@@ -1,10 +1,9 @@
 """
-run_all.py — Production-Grade Pipeline Runner + Service Orchestrator
+run_all.py — Self-Contained Streamlit Application Pipeline Runner
 ===================================================================
 Orchestrates and launches:
   1. ML Retraining Pipeline (models/pipeline.py) -> hyperparameter tuning & SHAP plotting
-  2. FastAPI Uvicorn Server (api/main.py on port 8000) -> lifespan warmups, DB builds
-  3. Streamlit Operator Console (frontend/app.py on port 8501) -> interactive operations UI
+  2. Standalone Streamlit App (streamlit_app.py on port 8501) -> direct in-process RAG & ML
 """
 
 import os
@@ -39,11 +38,11 @@ def main():
         venv_python = Path(sys.executable) # Fallback to active runner binary
         
     print("=" * 65)
-    print("opsFlow - Production-Grade Deployment Orchestrator")
+    print("opsFlow - Self-Contained Deployment Orchestrator")
     print("=" * 65)
     
     # Step 1: Run Machine Learning Pipeline to train, plot and serialize
-    print("\n[Step 1/3] Triggering ML training & diagnostic visualization pipeline...")
+    print("\n[Step 1/2] Triggering ML training & diagnostic visualization pipeline...")
     ml_run = subprocess.run(
         [str(venv_python), "-m", "models.pipeline"],
         cwd=str(base_dir),
@@ -65,26 +64,10 @@ def main():
     else:
         print(f"[Warning] model_summary.json not found at {summary_src}. Proceeding with legacy/default configs.")
 
-    # Step 3: Boot FastAPI REST Service
-    print("\n[Step 2/3] Spinning up FastAPI Backend Service on port 8000...")
-    backend_process = subprocess.Popen(
-        [str(venv_python), "-m", "api.main"],
-        cwd=str(base_dir),
-        env=os.environ.copy(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True
-    )
-    
-    # Wait for backend to print startup message or warm models
-    print("Initializing backend and warming retrieval models", end="", flush=True)
-    time.sleep(5)
-    print(" Ready!")
-    
-    # Step 4: Boot Streamlit Operator Interface
-    print("\n[Step 3/3] Spinning up Streamlit Operations Console on port 8501...")
+    # Step 3: Boot Streamlit Operator Interface directly
+    print("\n[Step 2/2] Spinning up Streamlit Operations Console on port 8501...")
     frontend_process = subprocess.Popen(
-        [str(venv_python), "-m", "streamlit", "run", "frontend/app.py",
+        [str(venv_python), "-m", "streamlit", "run", "streamlit_app.py",
          "--server.port", "8501",
          "--server.address", "0.0.0.0",
          "--browser.gatherUsageStats", "false"],
@@ -96,8 +79,7 @@ def main():
     time.sleep(3)
     
     print("\n" + "=" * 65)
-    print("✅ System Deployment Successful!")
-    print("FastAPI Backend:     http://localhost:8000")
+    print("✅ Self-Contained Streamlit System Deployment Successful!")
     print("Interactive Web UI:  http://localhost:8501")
     print("Press Ctrl+C to terminate services cleanly.")
     print("=" * 65 + "\n")
@@ -110,11 +92,9 @@ def main():
     except KeyboardInterrupt:
         print("\nShutting down opsFlow services...")
     finally:
-        # Graceful shutdown of backend and frontend processes
+        # Graceful shutdown of frontend process
         frontend_process.terminate()
-        backend_process.terminate()
         frontend_process.wait()
-        backend_process.wait()
         print("All processes cleaned up. Have a great day!")
 
 if __name__ == "__main__":
