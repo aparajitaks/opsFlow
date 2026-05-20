@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import json
+import time
 
 # Ensure workspace root is in path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
@@ -50,6 +51,7 @@ def main():
     # RAG Pipeline Actions
     rag_group = parser.add_argument_group("Task 4 — Retrieval-Augmented Generation (RAG) Assistant")
     rag_group.add_argument("--query", type=str, metavar='"<question>"', help="Submit a question to the grounded industrial maintenance RAG assistant.")
+    rag_group.add_argument("--interactive", "-i", action="store_true", help="Start a continuous interactive RAG terminal loop.")
     rag_group.add_argument("--groq-key", type=str, metavar="KEY", help="Pass a Groq API Key dynamically (overrides environment variable).")
     rag_group.add_argument("--use-semantic-chunking", action="store_true", help="Apply sentence cosine semantic chunking during knowledge base indexing.")
     rag_group.add_argument("--clear-cache", action="store_true", help="Purge the persistent semantic query cache database.")
@@ -167,6 +169,144 @@ def main():
             print(f" • Retrieval Confidence: {res.get('confidence_score', 0.0):.4f}")
             
         print("="*66)
+        sys.exit(0)
+
+    if args.interactive:
+        print_banner()
+        from rag import rag_pipeline
+        from core.config import settings
+
+        print("[RAG] Starting consolidated RAG pipeline initialization for interactive session...")
+        if args.use_semantic_chunking:
+            print("[RAG] Enabling sentence-level cosine semantic chunking strategy.")
+
+        # Initialize the pipeline ONCE here, avoiding reloading embedding/rerank models inside loop
+        rag_pipeline.initialize_pipeline(use_semantic_chunking=args.use_semantic_chunking)
+
+        # Prepare metrics and history trackers
+        history = []
+        history_transcripts = []
+        session_start_time = time.time()
+
+        print("\n\033[1;32m==================================================================")
+        print(" 🛠️  opsFlow: INDUSTRIAL MAINTENANCE RAG ASSISTANT INTERACTIVE MODE")
+        print("==================================================================")
+        print(" • Type your maintenance question below and press Enter.")
+        print(" • Special Commands:")
+        print("   - 'exit', 'quit', or 'q'  -> Exit session gracefully.")
+        print("   - '/clear'                 -> Clear the screen.")
+        print("   - '/history'               -> Show query history in this session.")
+        print("   - '/save'                  -> Save session conversation log to file.")
+        print("   - '/help'                  -> Show this guide again.")
+        print("==================================================================\033[0m")
+
+        while True:
+            try:
+                # Prompt with premium cyan terminal color formatting
+                query = input("\n\033[1;36m⚙️ opsFlow>\033[0m ").strip()
+            except (KeyboardInterrupt, EOFError):
+                print("\n\n\033[1;33m[Session Interrupted] Safely terminating session. Goodbye!\033[0m")
+                break
+
+            if not query:
+                continue
+
+            # Graceful exit triggers
+            if query.lower() in ("exit", "quit", "q"):
+                session_duration = time.time() - session_start_time
+                print(f"\n\033[1;32m[Session Terminated] Session duration: {session_duration:.1f}s | Safe shutdown of RAG models. Goodbye!\033[0m")
+                break
+
+            # Process special slash commands
+            if query.startswith("/"):
+                cmd = query.lower()
+                if cmd in ("/help", "help"):
+                    print("\n\033[1;35m--- SPECIAL COMMAND REFERENCE ---")
+                    print("  /help      - Display this help reference.")
+                    print("  /clear     - Clear the terminal screen.")
+                    print("  /history   - View queried questions in this session.")
+                    print("  /save      - Save current conversation transcript to logs/ directory.")
+                    print("  exit/quit  - Terminate interactive session.\033[0m")
+                elif cmd == "/clear":
+                    os.system('clear' if os.name == 'posix' else 'cls')
+                    print_banner()
+                    print("\033[1;32mTerminal cleared. opsFlow RAG interactive session is running.\033[0m")
+                elif cmd == "/history":
+                    if not history:
+                        print("\n\033[1;33mNo queries recorded in this session yet.\033[0m")
+                    else:
+                        print("\n\033[1;35m--- SESSION QUERY HISTORY ---")
+                        for idx, q in enumerate(history, 1):
+                            print(f"  {idx}. {q}")
+                        print("\033[0m")
+                elif cmd == "/save":
+                    log_name = f"session_transcript_{int(time.time())}.txt"
+                    log_path = settings.LOGS_DIR / log_name
+                    try:
+                        with open(log_path, "w", encoding="utf-8") as f:
+                            f.write("==================================================================\n")
+                            f.write("       ⚙️ opsFlow: INDUSTRIAL RAG INTERACTIVE SESSION LOG\n")
+                            f.write("==================================================================\n")
+                            f.write(f"Session Start: {time.asctime(time.localtime(session_start_time))}\n")
+                            f.write(f"Session Saved: {time.asctime(time.localtime(time.time()))}\n")
+                            f.write(f"Total Queries: {len(history)}\n")
+                            f.write("==================================================================\n\n")
+                            for idx, (q, a) in enumerate(history_transcripts, 1):
+                                f.write(f"[{idx}] USER QUERY:\n{q}\n\n")
+                                f.write(f"[{idx}] RAG SYSTEM ANSWER:\n{a}\n")
+                                f.write("-" * 66 + "\n\n")
+                        print(f"\n\033[1;32m✅ Conversation log successfully saved to: {log_path}\033[0m")
+                    except Exception as e:
+                        print(f"\n\033[1;31m⚠️ Error saving conversation log: {e}\033[0m")
+                else:
+                    print(f"\n\033[1;31m⚠️ Unknown command '{query}'. Type '/help' for a list of valid commands.\033[0m")
+                continue
+
+            # Execute RAG query with timing metrics and robust error handling
+            print("\033[1;33m⌛ Grounding query against reference manuals...\033[0m")
+            start_time = time.time()
+            try:
+                # Reuses the exact same retriever/generator session instantiated in memory
+                res = rag_pipeline.run_query(query, groq_api_key=args.groq_key)
+            except Exception as e:
+                print(f"\n\033[1;31m⚠️ Failure during processing: {e}\033[0m")
+                continue
+
+            elapsed = time.time() - start_time
+            history.append(query)
+            history_transcripts.append((query, res.get("answer", "")))
+
+            # Print output block dynamically
+            print("\n\033[1;34m" + "="*66 + "\033[0m")
+            if res.get("blocked"):
+                print(f"\033[1;31m⚠️  QUERY BLOCKED BY PROMPT INJECTION FIREWALL:\033[0m")
+                print(f"\033[31m{res.get('answer')}\033[0m")
+            else:
+                print("\033[1;35mRetrieved Reference Manual Chunks (Hybrid RRF + Cross-Encoder):\033[0m")
+                for idx, c in enumerate(res.get("retrieved_chunks", [])):
+                    print(f" \033[33m[{idx+1}]\033[0m Doc: \033[1m{c['doc_name']:<24}\033[0m | Chunk ID: {c['chunk_index']:<2} | Words: {c['start_word']:>3}-{c['end_word']:<3} | Score: \033[32m{c.get('score', 0.0):.4f}\033[0m")
+                
+                print("\n\033[1;32mGenerated Grounded Answer:\033[0m")
+                print("-" * 66)
+                print(res.get("answer"))
+                print("-" * 66)
+                
+                faith = res.get("faithfulness", {})
+                is_faithful = faith.get("faithful")
+                faithful_color = "\033[1;32m" if is_faithful else "\033[1;31m"
+                print(f"\n\033[1mFactual Faithfulness Audit:\033[0m")
+                print(f" • Grounded in Context  : {faithful_color}{'✅ YES' if is_faithful else '❌ NO'}\033[0m")
+                print(f" • Grounding Score      : \033[32m{faith.get('score', 0.0)*100:.1f}%\033[0m")
+                print(f" • Auditor Verdict      : \033[3m\"{faith.get('verdict')}\"\033[0m")
+                if faith.get("unsupported_claims"):
+                    print(f" • Hallucinated Claims  : \033[31m{faith.get('unsupported_claims')}\033[0m")
+                    
+                print(f" • Query Cache Hit      : {'✅ YES' if res.get('cached') else '❌ NO'}")
+                print(f" • Retrieval Confidence  : \033[32m{res.get('confidence_score', 0.0):.4f}\033[0m")
+                print(f" • RAG Retrieval Latency : \033[35m{elapsed*1000:.2f} ms\033[0m")
+                
+            print("\033[1;34m" + "="*66 + "\033[0m")
+            
         sys.exit(0)
 
 if __name__ == "__main__":
