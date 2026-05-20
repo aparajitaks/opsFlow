@@ -1,14 +1,14 @@
+import os
 import streamlit as st
-from frontend.state import predict_ml, query_rag
+from frontend.state import predict_ml, get_model_status
+from core.config import settings
 
-def render_telemetry_panel(custom_key: str = None):
+def render_telemetry_panel():
     """
-    Renders telemetry sliders, model selection dropdown, failure prediction triggers,
-    engineered features calculation, and failure probability gauges, integrated
-    with RAG diagnostic recommendations.
+    Renders standard telemetry inputs, predictions, model status,
+    and all offline/online evaluation visualizations (ROC-AUC, Confusion Matrices, SHAP).
     """
-    st.subheader("⚙️ Real-time Equipment Failure Predictor")
-    st.markdown("Adjust telemetry attributes below to simulate operational states and calculate failure probability.")
+    st.write("Adjust telemetry sliders below to simulate live equipment sensors and trigger predictions.")
     
     col1, col2 = st.columns(2)
     
@@ -31,6 +31,7 @@ def render_telemetry_panel(custom_key: str = None):
 
     st.markdown("---")
     
+    # Analyze trigger button
     if st.button("🔌 Analyze Machine State", use_container_width=True):
         payload = {
             "Type": eq_type,
@@ -49,32 +50,14 @@ def render_telemetry_panel(custom_key: str = None):
                 eng = res["engineered_features"]
                 
                 # Render results columns
-                res_col1, res_col2 = st.columns([1, 1])
+                res_col1, res_col2 = st.columns(2)
                 
                 with res_col1:
                     st.markdown("#### Diagnosis Status")
                     if pred == 1:
                         st.error("🚨 EQUIPMENT FAILURE DETECTED")
-                        st.markdown(
-                            """
-                            <div style="background-color:#7f1d1d; border-radius:8px; padding:15px; border-left: 6px solid #ef4444; color: #fecaca; margin-bottom: 20px;">
-                                <strong>High Risk Warning:</strong> Telemetry values violate normal threshold boundaries. 
-                                Immediate inspection or tooling replacement is recommended.
-                            </div>
-                            """, 
-                            unsafe_allow_html=True
-                        )
                     else:
                         st.success("🟢 STABLE OPERATIONS VERIFIED")
-                        st.markdown(
-                            """
-                            <div style="background-color:#14532d; border-radius:8px; padding:15px; border-left: 6px solid #22c55e; color: #bbf7d0; margin-bottom: 20px;">
-                                <strong>System Safe:</strong> Machine parameters reside within normal operating bands. 
-                                Equipment is safe for continuous runtime.
-                            </div>
-                            """, 
-                            unsafe_allow_html=True
-                        )
                         
                 with res_col2:
                     st.markdown("#### Probability Analysis")
@@ -88,39 +71,65 @@ def render_telemetry_panel(custom_key: str = None):
                 e_col2.metric("Calculated Power", f"{eng['power']:.1f} W")
                 e_col3.metric("Wear-Torque Ratio", f"{eng['wear_torque_ratio']:.4f}")
 
-                # --- Unified ML-RAG Prescription Plan ---
-                st.markdown("---")
-                st.markdown("### 🤖 Integrated Prescriptive Maintenance Plan")
-                
-                # Formulate intelligent search queries based on telemetry failure vectors
-                failure_vectors = []
-                if eng["temp_diff"] >= 9.5 or proc_temp >= 312.0 or air_temp >= 302.0:
-                    failure_vectors.append("Thermographic Winding Overheating (HDF)")
-                    rag_query = "motor overheating winding process temperature troubleshooting ERR-101 ERR-102"
-                elif wear >= 150.0:
-                    failure_vectors.append("Severe Tool Wear & Bearing Defect Risk (TWF)")
-                    rag_query = "bearing vibrational defect structural inspection tool wear maintenance schedules"
-                elif torque >= 55.0 or speed >= 2200.0 or eng["power"] >= 80000.0:
-                    failure_vectors.append("Drive Train Overstrain & Current Spike Risk (OSF/PWF)")
-                    rag_query = "overcurrent spike torque limits mechanical vibration coupling alignment ERR-201 ERR-301"
-                else:
-                    rag_query = "preventive maintenance safety lockout tagout schedules gear lubrication"
-                
-                if pred == 1:
-                    st.warning(f"🚨 **Failure Diagnostics Identified:** {', '.join(failure_vectors) if failure_vectors else 'General Telemetry Anomaly'}")
-                else:
-                    st.info("🟢 **Operational Status:** Parameters within safety bounds. Preventive schedules should be verified.")
-                
-                with st.spinner("Retrieving relevant industrial manuals and generating grounded maintenance plan..."):
-                    rag_res = query_rag(rag_query, custom_api_key=custom_key)
-                    if rag_res:
-                        st.markdown("#### 💡 Grounded Maintenance Action Plan")
-                        st.write(rag_res["answer"])
-                        
-                        st.markdown("#### 📁 Supporting Technical Documentation (Citations)")
-                        for idx, chunk in enumerate(rag_res["retrieved_chunks"]):
-                            with st.expander(f"📄 {chunk['doc_name']} — Chunk {chunk['chunk_index']} (Relevance Score: {chunk.get('score', 0.0):.2f})"):
-                                st.markdown(f"```text\n{chunk['text']}\n```")
-                    else:
-                        st.error("Failed to generate intelligent maintenance plan due to RAG service exception.")
+    # Display best model summary parameters
+    st.markdown("---")
+    st.markdown("### 🏆 Trained ML Model Parameters & CV Performance")
+    status = get_model_status()
+    if status and status.get("run_timestamp"):
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Best Model F1-Score", f"{status.get('best_f1'):.4f}")
+        col_m2.metric("Mean CV ROC-AUC", f"{status.get('best_roc_auc'):.4f}")
+        col_m3.metric("Failure Rate (Baseline)", f"{status.get('failure_rate_in_dataset') * 100:.2f}%")
+        st.markdown(f"**Primary Failure Indicators:** `{', '.join(status.get('top_features', []))}`")
+        st.markdown(f"**Best Parameters:** `{status.get('best_params')}`")
+    else:
+        st.info("No active model training metadata found.")
 
+    # Ingest and display Matplotlib model visualizations (ROC, Confusion Matrix, SHAP)
+    st.markdown("---")
+    st.markdown("### 📈 Evaluation Plots & Feature Importance")
+    
+    plots_tab1, plots_tab2, plots_tab3 = st.tabs(["Evaluation Curves", "SHAP Explainability", "Confusion Matrices"])
+    plots_dir = os.path.join(settings.MODEL_ARTIFACTS_DIR, "plots")
+    
+    with plots_tab1:
+        col_pr, col_roc = st.columns(2)
+        pr_path = os.path.join(plots_dir, "precision_recall_comparison.png")
+        if os.path.exists(pr_path):
+            col_pr.image(pr_path, caption="Precision-Recall Curves (Tuned Models)", use_container_width=True)
+        else:
+            col_pr.info("Precision-Recall chart not generated yet.")
+            
+        roc_path = os.path.join(plots_dir, "roc_comparison.png")
+        if os.path.exists(roc_path):
+            col_roc.image(roc_path, caption="ROC Curves (Tuned Models)", use_container_width=True)
+        else:
+            col_roc.info("ROC comparison chart not generated yet.")
+            
+    with plots_tab2:
+        col_sh1, col_sh2 = st.columns(2)
+        beeswarm_path = os.path.join(plots_dir, "shap_beeswarm.png")
+        if os.path.exists(beeswarm_path):
+            col_sh1.image(beeswarm_path, caption="SHAP Beeswarm Plot (Global Feature Drivers)", use_container_width=True)
+        else:
+            col_sh1.info("SHAP beeswarm chart not generated yet.")
+            
+        force_path = os.path.join(plots_dir, "shap_force_plot.png")
+        if os.path.exists(force_path):
+            col_sh2.image(force_path, caption="SHAP Force Plot (Single Failure Instance Analysis)", use_container_width=True)
+        else:
+            col_sh2.info("SHAP force chart not generated yet.")
+            
+    with plots_tab3:
+        col_cm1, col_cm2 = st.columns(2)
+        rf_cm_path = os.path.join(plots_dir, "rf_confusion_matrix.png")
+        if os.path.exists(rf_cm_path):
+            col_cm1.image(rf_cm_path, caption="Random Forest Confusion Matrix", use_container_width=True)
+        else:
+            col_cm1.info("Random Forest confusion matrix not generated yet.")
+            
+        lr_cm_path = os.path.join(plots_dir, "lr_confusion_matrix.png")
+        if os.path.exists(lr_cm_path):
+            col_cm2.image(lr_cm_path, caption="Logistic Regression Confusion Matrix", use_container_width=True)
+        else:
+            col_cm2.info("Logistic Regression confusion matrix not generated yet.")

@@ -46,7 +46,6 @@ opsFlow/
 ├── frontend/               # Streamlit Modular Interface
 │   ├── components/         # Modular layout views
 │   │   ├── chat_panel.py   # RAG conversational chatbot & audit cards
-│   │   ├── metrics_panel.py# MLOps performance plots & reindexing console
 │   │   └── telemetry_panel.py # Simulated equipment failure diagnostic sliders
 │   ├── app.py              # Main dashboard entrypoint & style injectors
 │   └── state.py            # Direct-in-process state controllers & log tailers

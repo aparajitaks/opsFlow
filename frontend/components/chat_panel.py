@@ -3,8 +3,8 @@ from frontend.state import query_rag
 
 def render_chat_panel(custom_api_key: str = None):
     """
-    Renders the RAG Chatbot interface with scrolling conversation history,
-    source document citations, confidence indicators, and faithfulness audits.
+    Renders the simplified RAG interface with clean native Streamlit chat bubbles
+    and standard document citation expanders.
     """
     # Initialize session state for conversation messages if not set
     if "messages" not in st.session_state:
@@ -15,7 +15,7 @@ def render_chat_panel(custom_api_key: str = None):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
             
-            # Citation expandable cards (Assistant only)
+            # Citation indicators (Assistant only)
             if msg["role"] == "assistant":
                 # 1. Caching label
                 if msg.get("cached"):
@@ -24,23 +24,14 @@ def render_chat_panel(custom_api_key: str = None):
                 # 2. Confidence Indicator
                 if "confidence_score" in msg:
                     conf = msg["confidence_score"]
-                    color = "green" if conf >= 0.7 else "orange" if conf >= 0.4 else "red"
-                    st.markdown(f"**Confidence Level**: <span style='color:{color}; font-weight:bold;'>{conf*100:.1f}%</span>", unsafe_allow_html=True)
+                    st.markdown(f"**Retrieval Confidence**: `{conf*100:.1f}%`")
                 
                 # 3. Sources expansion
                 if msg.get("sources"):
                     with st.expander("📚 View Grounding Sources"):
                         for idx, src in enumerate(msg["sources"]):
-                            preview = src["text"].replace("\n", " ")[:160] + "..."
-                            st.write(f"Chunk {idx+1} | {src['doc_name']} | Words {src['start_word']}–{src['end_word']} | Score: {src.get('score', 0.0):.2f}")
-                            st.markdown(
-                                f"""
-                                <div class="source-card" style="margin-top: -10px; margin-bottom: 15px;">
-                                    <div class="source-preview">{preview}</div>
-                                </div>
-                                """,
-                                unsafe_allow_html=True
-                            )
+                            st.markdown(f"**Chunk {idx+1} | {src['doc_name']} (Relevance Score: {src.get('score', 0.0):.2f})**")
+                            st.markdown(f"```text\n{src['text']}\n```")
                 
                 # 4. Faithfulness audit results
                 if msg.get("faithfulness"):
@@ -49,13 +40,13 @@ def render_chat_panel(custom_api_key: str = None):
                     verdict = faith.get("verdict", "")
                     
                     if faith.get("faithful"):
-                        st.success(f"✅ Factual Auditing: Faithful ({score:.2f})")
-                        st.markdown(f'*" {verdict} "*')
+                        st.success(f"✅ Faithfulness Check: Passed ({score:.2f})")
+                        st.caption(verdict)
                     else:
-                        st.error(f"❌ Factual Auditing: Hallucination Flagged ({score:.2f})")
-                        st.markdown(f'*" {verdict} "*')
+                        st.warning(f"⚠️ Faithfulness Check: Potential Hallucination ({score:.2f})")
+                        st.caption(verdict)
                         if faith.get("unsupported_claims"):
-                            st.markdown("**Unsupported LLM Claims:**")
+                            st.markdown("**Unsupported Claims:**")
                             for claim in faith["unsupported_claims"]:
                                 st.markdown(f"- *{claim}*")
 
