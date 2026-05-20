@@ -1,0 +1,131 @@
+# ===================================================
+# opsFlow — Unified Configuration File (config.yaml)
+# ===================================================
+# All hyperparameters, pipeline settings, and paths
+# are declared here. Do NOT hardcode values in code.
+# Secrets (API keys) must stay in .env — not here.
+# ===================================================
+
+# --------------------------------------------------
+# ML PIPELINE — Task 3
+# --------------------------------------------------
+ml:
+  random_state: 42
+  test_size: 0.20
+  n_cv_splits: 5
+
+  logistic_regression:
+    class_weight: balanced
+    max_iter: 1000
+    param_grid:
+      C: [0.01, 0.1, 1, 10]
+      solver: [lbfgs, liblinear]
+
+  random_forest:
+    class_weight: balanced
+    param_grid:
+      n_estimators: [100, 200]
+      max_depth: [10, 15, 20]
+      min_samples_leaf: [5, 10, 15]
+
+  features:
+    continuous:
+      - "Air temperature [K]"
+      - "Process temperature [K]"
+      - "Rotational speed [rpm]"
+      - "Torque [Nm]"
+      - "Tool wear [min]"
+      - "temp_diff"
+      - "power"
+      - "wear_torque_ratio"
+    categorical:
+      - "Type"
+    target: "Machine failure"
+    leakage_cols:
+      - "Machine failure"
+      - "TWF"
+      - "HDF"
+      - "PWF"
+      - "OSF"
+      - "RNF"
+    drop_ids:
+      - "UDI"
+      - "Product ID"
+    type_map:
+      H: 0
+      L: 1
+      M: 2
+    feature_order:
+      - "Type"
+      - "Air temperature [K]"
+      - "Process temperature [K]"
+      - "Rotational speed [rpm]"
+      - "Torque [Nm]"
+      - "Tool wear [min]"
+      - "temp_diff"
+      - "power"
+      - "wear_torque_ratio"
+
+  # Root-cause rule thresholds for explain output
+  thresholds:
+    hdf_temp_delta: 8.5
+    pwf_power: 9000
+    twf_wear: 200
+    osf_torque_high: 65
+    osf_torque_low: 10
+
+  mlflow:
+    enabled: true
+    experiment_name: "opsflow_ml_v3"
+    run_name_prefix: "train"
+
+# --------------------------------------------------
+# RAG PIPELINE — Task 4
+# --------------------------------------------------
+rag:
+  embedding_model: "all-MiniLM-L6-v2"
+  reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  collection_name: "maintenance_kb"
+
+  chunking:
+    chunk_size: 300
+    overlap: 50
+    use_semantic: false
+
+  retrieval:
+    top_k: 10
+    rrf_k: 60
+    top_n_rerank: 3
+    confidence_threshold: 0.30
+
+  cache:
+    similarity_threshold: 0.98     # raised from 0.95 to prevent BPFI/BPFO collision
+
+  generator:
+    groq_model: "llama-3.1-8b-instant"
+    auditor_model: "llama-3.1-8b-instant"
+    temperature: 0.0
+    max_retries: 4
+    retry_delays: [3, 6, 15, 30]
+
+  memory:
+    enabled: true
+    max_history_turns: 6           # last N (Q, A) pairs injected as context
+
+# --------------------------------------------------
+# SECURITY
+# --------------------------------------------------
+security:
+  rate_limit_per_minute: 60
+  max_query_length: 500
+
+# --------------------------------------------------
+# LOGGING
+# --------------------------------------------------
+logging:
+  level: "INFO"                    # DEBUG | INFO | WARNING | ERROR
+  format: "%(asctime)s [%(levelname)s] %(name)s — %(message)s"
+  datefmt: "%Y-%m-%d %H:%M:%S"
+  file: "logs/app.log"
+  max_bytes: 10485760              # 10 MB
+  backup_count: 3

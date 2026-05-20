@@ -1,89 +1,41 @@
 import os
-import re
-import html
-import time
 import json
 import datetime
-from collections import defaultdict
+import groq
 from groq import Groq
 from core.config import settings
+from core.logger import get_logger
+from core.security import (
+    TokenBucketRateLimiter,
+    rate_limiter,
+    sanitize_input,
+    check_prompt_injection,
+    PROMPT_INJECTION_PATTERNS,
+)
 
-# In-memory TokenBucket Rate Limiter
-class TokenBucketRateLimiter:
-    """In-memory thread-safe token-bucket rate limiter to prevent API abuse."""
-    def __init__(self, rate_limit: int = 60, period: float = 60.0):
-        self.rate_limit = rate_limit
-        self.period = period
-        self.buckets = defaultdict(lambda: (float(rate_limit), time.time()))
-
-    def is_allowed(self, client_id: str) -> bool:
-        tokens, last_update = self.buckets[client_id]
-        now = time.time()
-        
-        # Replenish tokens proportional to elapsed time
-        elapsed = now - last_update
-        tokens_to_add = elapsed * (self.rate_limit / self.period)
-        new_tokens = min(float(self.rate_limit), tokens + tokens_to_add)
-        
-        if new_tokens >= 1.0:
-            self.buckets[client_id] = (new_tokens - 1.0, now)
-            return True
-        else:
-            self.buckets[client_id] = (new_tokens, now)
-            return False
-
-rate_limiter = TokenBucketRateLimiter(rate_limit=settings.RATE_LIMIT_PER_MINUTE)
-
-# Security scanning & Prompt injection regex firewalls
-PROMPT_INJECTION_PATTERNS = [
-    re.compile(r"ignore\s+(?:the\s+)?(?:prior|previous|above)\s+instructions", re.IGNORECASE),
-    re.compile(r"bypass\s+(?:system|security|safety|instructions)", re.IGNORECASE),
-    re.compile(r"(?:acting|act)\s+as", re.IGNORECASE),
-    re.compile(r"system\s+prompt\s+leak", re.IGNORECASE),
-    re.compile(r"reveal\s+your\s+system\s+prompt", re.IGNORECASE),
-    re.compile(r"print\s+your\s+instructions", re.IGNORECASE),
-    re.compile(r"override\s+(?:grounding|instructions|controls)", re.IGNORECASE),
-]
-
-def sanitize_input(text: str) -> str:
-    """Cleans inputs: strips whitespace, escapes HTML tags, limits character size."""
-    if not text:
-        return ""
-    cleaned = text.strip()
-    if len(cleaned) > settings.MAX_QUERY_LENGTH:
-        cleaned = cleaned[:settings.MAX_QUERY_LENGTH]
-    return html.escape(cleaned)
-
-def check_prompt_injection(text: str) -> bool:
-    """Scans query for common adversarial prompt injection attacks."""
-    if not text:
-        return False
-    for pattern in PROMPT_INJECTION_PATTERNS:
-        if pattern.search(text):
-            return True
-    return False
-
-# Groq Client Cache Singleton
-_groq_client_instance = None
-_groq_lock = threading_lock = threading = None # We will use a standard lock
+log = get_logger("rag.generator")
 
 import threading
+
+_groq_clients: dict[str, Groq] = {}
 _groq_lock = threading.Lock()
 
-def get_groq_client(api_key: str) -> Groq:
-    """Thread-safe singleton retriever for Groq API client."""
-    global _groq_client_instance
-    if not api_key or api_key.strip().lower() in ("none", "undefined", "null", ""):
+
+def get_groq_client(api_key: str) -> Groq | None:
+    """Thread-safe per-key Groq client cache (supports key rotation)."""
+    if not is_valid_groq_key(api_key):
         return None
-    if _groq_client_instance is None:
-        with _groq_lock:
-            if _groq_client_instance is None:
-                _groq_client_instance = Groq(api_key=api_key.strip())
-    return _groq_client_instance
+    key = api_key.strip()
+    with _groq_lock:
+        if key not in _groq_clients:
+            _groq_clients[key] = Groq(api_key=key)
+        return _groq_clients[key]
+
 
 def _clear_groq_client():
-    global _groq_client_instance
-    _groq_client_instance = None
+    with _groq_lock:
+        _groq_clients.clear()
+
 
 get_groq_client.clear = _clear_groq_client
 
@@ -95,42 +47,84 @@ def is_valid_groq_key(api_key: str) -> bool:
     return len(k) > 0 and k.lower() not in ("none", "undefined", "null", "")
 
 # Grounded Generation Completions
-def generate_llm_completion(query: str, retrieved_chunks: list[dict], client: Groq) -> str:
-    """Executes grounded generation call to Groq with rate-limit retries."""
+def generate_llm_completion(query: str, retrieved_chunks: list[dict], client: Groq, conversation_history: list = None) -> str:
+    """Executes grounded generation call to Groq with rate-limit retries and conversational memory support."""
     context = "\n\n".join([
         f"[{c['doc_name']} | Chunk {c['chunk_index']}]\n{c['text']}"
         for c in retrieved_chunks
     ])
     
-    max_retries = 3
-    retry_delays = [3, 6, 12]
+    # Construct message sequence
+    messages = [
+        {
+            "role": "system", 
+            "content": (
+                "You are an industrial maintenance assistant. Answer ONLY using the provided context. "
+                f"If the answer is not in the context, say exactly: '{settings.KB_REFUSAL_MESSAGE}' "
+                "Do not use outside knowledge or extrapolate."
+            )
+        }
+    ]
+    
+    # If conversation history is present, inject it before the current question
+    if conversation_history:
+        for turn in conversation_history[-settings.MEMORY_MAX_TURNS:]:
+            messages.append({"role": turn["role"], "content": turn["content"]})
+            
+    # Add current question with context
+    messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"})
+    
+    max_retries = settings.GEN_MAX_RETRIES
+    retry_delays = settings.GEN_RETRY_DELAYS
     
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
                 model=settings.GROQ_MODEL_GENERATOR,
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": (
-                            "You are an industrial maintenance assistant. Answer ONLY using the provided context. "
-                            "If the answer is not in the context, say exactly: 'I don't have enough information in "
-                            "my knowledge base to answer this question.' Do not use outside knowledge or extrapolate."
-                        )
-                    },
-                    {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
-                ],
-                temperature=0.0
+                messages=messages,
+                temperature=settings.GEN_TEMPERATURE
             )
+            
+            # Log token usage
+            if hasattr(response, "usage") and response.usage:
+                log.info(
+                    f"Generator Groq API usage - Prompt tokens: {response.usage.prompt_tokens} | "
+                    f"Completion tokens: {response.usage.completion_tokens} | "
+                    f"Total tokens: {response.usage.total_tokens}"
+                )
+                
             return response.choices[0].message.content
-        except Exception as e:
-            is_429 = "429" in str(e) or "rate limit" in str(e).lower()
-            if is_429 and attempt < max_retries - 1:
+        except groq.APIConnectionError as e:
+            # ConnectionError: fail fast
+            err_msg = f"Groq Connection Error: Could not connect to Groq API. Please check your network connection. Detail: {e}"
+            log.error(err_msg)
+            return err_msg
+        except groq.RateLimitError as e:
+            # RateLimitError (429): retry
+            if attempt < max_retries - 1:
                 wait = retry_delays[attempt]
-                print(f"[RAG Generator 429] Waiting {wait}s before retry {attempt + 2}/{max_retries}...")
+                log.warning(f"[RAG Generator 429] Rate limit hit. Waiting {wait}s before retry {attempt + 2}/{max_retries}...")
                 time.sleep(wait)
             else:
-                return f"Error during Groq generation: {e}"
+                err_msg = "Rate limit exceeded in Generator after multiple retries."
+                log.error(err_msg)
+                return err_msg
+        except Exception as e:
+            # Check for other errors
+            is_429 = "429" in str(e) or "rate limit" in str(e).lower()
+            is_conn = "connection" in str(e).lower() or "connect" in str(e).lower()
+            if is_conn:
+                err_msg = f"Groq Connection Error: {e}"
+                log.error(err_msg)
+                return err_msg
+            elif is_429 and attempt < max_retries - 1:
+                wait = retry_delays[attempt]
+                log.warning(f"[RAG Generator 429] Waiting {wait}s before retry {attempt + 2}/{max_retries}...")
+                time.sleep(wait)
+            else:
+                err_msg = f"Error during Groq generation: {e}"
+                log.error(err_msg, exc_info=True)
+                return err_msg
                 
     return "Rate limit exceeded in Generator after multiple retries."
 
@@ -184,8 +178,8 @@ Respond in this exact JSON format:
   "verdict": "one sentence summary"
 }}"""
 
-    max_retries = 3
-    retry_delays = [3, 6, 12]
+    max_retries = settings.GEN_MAX_RETRIES
+    retry_delays = settings.GEN_RETRY_DELAYS
     
     for attempt in range(max_retries):
         try:
@@ -197,27 +191,74 @@ Respond in this exact JSON format:
                         "content": (
                             "You are a factual claim auditor. Respond ONLY in valid JSON. "
                             "Do not write introductory or concluding remarks outside the JSON block. "
-                            "CRITICAL: If the Generated Answer is a refusal to answer (e.g. 'I don't have enough "
+                            "CRITICAL: If the Generated Answer is a refusal to answer (e.g. 'I could not find this "
                             "information...'), mark it as faithful (faithful: true, score: 1.0, unsupported_claims: [])."
                         )
                     },
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.0
+                temperature=settings.GEN_TEMPERATURE
             )
+            
+            # Log token usage
+            if hasattr(response, "usage") and response.usage:
+                log.info(
+                    f"Auditor Groq API usage - Prompt tokens: {response.usage.prompt_tokens} | "
+                    f"Completion tokens: {response.usage.completion_tokens} | "
+                    f"Total tokens: {response.usage.total_tokens}"
+                )
+                
             raw = response.choices[0].message.content.strip()
             return parse_faithfulness_json(raw)
-        except Exception as e:
-            is_429 = "429" in str(e) or "rate limit" in str(e).lower()
-            if is_429 and attempt < max_retries - 1:
+        except groq.APIConnectionError as e:
+            # ConnectionError: fail fast
+            err_msg = f"Auditor Connection Error: Could not connect to Groq API. Please check your network connection. Detail: {e}"
+            log.error(err_msg)
+            return {
+                "faithful": False,
+                "score": 0.0,
+                "unsupported_claims": [err_msg],
+                "verdict": "Auditing service connection failed."
+            }
+        except groq.RateLimitError as e:
+            # RateLimitError (429): retry
+            if attempt < max_retries - 1:
                 wait = retry_delays[attempt]
-                print(f"[RAG Auditor 429] Waiting {wait}s before retry {attempt + 2}/{max_retries}...")
+                log.warning(f"[RAG Auditor 429] Rate limit hit. Waiting {wait}s before retry {attempt + 2}/{max_retries}...")
                 time.sleep(wait)
             else:
+                err_msg = "Rate limit exceeded in Auditor after multiple retries."
+                log.error(err_msg)
                 return {
                     "faithful": False,
                     "score": 0.0,
-                    "unsupported_claims": [f"Auditor failure: {e}"],
+                    "unsupported_claims": [err_msg],
+                    "verdict": "Auditing was blocked by rate limits after multiple retries."
+                }
+        except Exception as e:
+            # Check for other errors
+            is_429 = "429" in str(e) or "rate limit" in str(e).lower()
+            is_conn = "connection" in str(e).lower() or "connect" in str(e).lower()
+            if is_conn:
+                err_msg = f"Auditor Connection Error: {e}"
+                log.error(err_msg)
+                return {
+                    "faithful": False,
+                    "score": 0.0,
+                    "unsupported_claims": [err_msg],
+                    "verdict": "Auditing service connection failed."
+                }
+            elif is_429 and attempt < max_retries - 1:
+                wait = retry_delays[attempt]
+                log.warning(f"[RAG Auditor 429] Waiting {wait}s before retry {attempt + 2}/{max_retries}...")
+                time.sleep(wait)
+            else:
+                err_msg = f"Auditor failure: {e}"
+                log.error(err_msg, exc_info=True)
+                return {
+                    "faithful": False,
+                    "score": 0.0,
+                    "unsupported_claims": [err_msg],
                     "verdict": "Auditing service encountered an active exception."
                 }
                 

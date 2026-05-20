@@ -1,16 +1,22 @@
 import os
 import threading
 import numpy as np
-import chromadb
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
+
 from core.config import settings
+from core.logger import get_logger
+from rag.vector_store.chroma_store import build_or_load_store
+
+log = get_logger("rag.retriever")
 
 # Global cache for the CrossEncoder reranker model
 _reranker_instance = None
 _reranker_lock = threading.Lock()
 
-def get_reranker(model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2") -> CrossEncoder:
+def get_reranker(model_name: str = None) -> CrossEncoder:
+    if model_name is None:
+        model_name = settings.RERANKER_MODEL
     """
     Thread-safe global singleton caching of CrossEncoder model
     to prevent redundant initialization and save CPU cycles.
@@ -19,88 +25,10 @@ def get_reranker(model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2") -> Cr
     if _reranker_instance is None:
         with _reranker_lock:
             if _reranker_instance is None:
-                print(f"[RAG] Initializing Cross-Encoder reranker model '{model_name}' on CPU...")
+                log.info("Initializing Cross-Encoder '%s' on CPU.", model_name)
                 _reranker_instance = CrossEncoder(model_name, device="cpu")
     return _reranker_instance
 
-# Global persistent Chroma client cache
-_chroma_client = None
-_chroma_lock = threading.Lock()
-
-def get_chroma_client(persist_dir: str) -> chromadb.PersistentClient:
-    """Thread-safe persistent ChromaDB client initialization."""
-    global _chroma_client
-    if _chroma_client is None:
-        with _chroma_lock:
-            if _chroma_client is None:
-                _chroma_client = chromadb.PersistentClient(path=persist_dir)
-    return _chroma_client
-
-def build_or_load_store(chunks: list[dict], embedder, persist_dir: str = None) -> chromadb.Collection:
-    """
-    Initializes a persistent ChromaDB client, checks if collection
-    already exists on disk, and populates it if it is a fresh run.
-    """
-    if persist_dir is None:
-        persist_dir = str(settings.DATABASE_DIR)
-    os.makedirs(persist_dir, exist_ok=True)
-    
-    client = get_chroma_client(persist_dir)
-    collection_name = "maintenance_kb"
-    
-    loaded_from_disk = False
-    
-    try:
-        collection = client.get_collection(name=collection_name)
-        if collection.count() > 0 and collection.count() == len(chunks):
-            print(f"[RAG ChromaDB] Collection '{collection_name}' successfully loaded from disk.")
-            print(f"[RAG ChromaDB] Total archived chunks: {collection.count()}")
-            loaded_from_disk = True
-        else:
-            if collection.count() > 0:
-                print(f"[RAG ChromaDB] Collection count mismatch ({collection.count()} vs {len(chunks)} chunks). Rebuilding database...")
-                client.delete_collection(name=collection_name)
-            collection = client.create_collection(name=collection_name)
-            loaded_from_disk = False
-    except Exception:
-        print(f"[RAG ChromaDB] Collection '{collection_name}' not found. Creating a new one...")
-        collection = client.create_collection(name=collection_name)
-        loaded_from_disk = False
-        
-    if not loaded_from_disk:
-        print(f"[RAG ChromaDB] Computing embeddings and populating database for {len(chunks)} chunks...")
-        
-        ids = []
-        embeddings = []
-        metadatas = []
-        documents = []
-        
-        for c in chunks:
-            ids.append(f"chunk_{c['chunk_index']}")
-            
-            # Embed text using embedded helper
-            chunk_embedding = embedder.encode([c['text']])[0].tolist()
-            embeddings.append(chunk_embedding)
-            
-            metadata = {
-                "doc_name": c["doc_name"],
-                "chunk_index": c["chunk_index"],
-                "start_word": c["start_word"],
-                "end_word": c["end_word"],
-                "word_count": c["word_count"]
-            }
-            metadatas.append(metadata)
-            documents.append(c["text"])
-            
-        collection.add(
-            ids=ids,
-            embeddings=embeddings,
-            metadatas=metadatas,
-            documents=documents
-        )
-        print(f"[RAG ChromaDB] Successfully populated vector database with {collection.count()} chunks.")
-        
-    return collection
 
 def semantic_retrieve(query: str, embedder, collection, k: int = 3, where_filter: dict = None) -> list[dict]:
     """

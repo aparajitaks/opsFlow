@@ -6,7 +6,10 @@ import numpy as np
 _embedder_instance = None
 _embedder_lock = threading.Lock()
 
-def get_embedder(model_name: str = "all-MiniLM-L6-v2") -> SentenceTransformer:
+def get_embedder(model_name: str = None) -> SentenceTransformer:
+    from core.config import settings
+    if model_name is None:
+        model_name = settings.EMBEDDING_MODEL
     """
     Thread-safe global singleton caching of SentenceTransformer embedding model
     to prevent redundant initialization and save CPU cycles.

@@ -186,6 +186,7 @@ def main():
         # Prepare metrics and history trackers
         history = []
         history_transcripts = []
+        conversation_history = []
         session_start_time = time.time()
 
         print("\n\033[1;32m==================================================================")
@@ -267,7 +268,7 @@ def main():
             start_time = time.time()
             try:
                 # Reuses the exact same retriever/generator session instantiated in memory
-                res = rag_pipeline.run_query(query, groq_api_key=args.groq_key)
+                res = rag_pipeline.run_query(query, groq_api_key=args.groq_key, conversation_history=conversation_history)
             except Exception as e:
                 print(f"\n\033[1;31m⚠️ Failure during processing: {e}\033[0m")
                 continue
@@ -275,6 +276,11 @@ def main():
             elapsed = time.time() - start_time
             history.append(query)
             history_transcripts.append((query, res.get("answer", "")))
+
+            # Update conversation history if not blocked
+            if not res.get("blocked"):
+                conversation_history.append({"role": "user", "content": query})
+                conversation_history.append({"role": "assistant", "content": res.get("answer", "")})
 
             # Print output block dynamically
             print("\n\033[1;34m" + "="*66 + "\033[0m")

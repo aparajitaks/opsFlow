@@ -8,7 +8,7 @@ from models.train import (
     engineer_features,
     prepare_data_pipeline,
     perform_cross_validation,
-    tune_models
+    tune_pipeline
 )
 from models.predict import TelemetryPredictor
 
@@ -48,21 +48,18 @@ def test_cross_validation_and_tuning(mock_csv_data):
         X_train, X_test, y_train, y_test = prepare_data_pipeline(df_eng)
         
         # Mock cross validation splitting and GridSearch limits to match tiny mock sample sizes
-        with patch("models.train.N_SPLITS", 2):
-            lr_cv, rf_cv = perform_cross_validation(X_train, y_train)
+        with patch("core.config.settings.N_CV_SPLITS", 2):
+            lr_cv, rf_cv = perform_cross_validation(X_train, y_train, n_splits=2)
             assert "f1" in lr_cv
             assert "roc_auc" in rf_cv
             
             # Check Grid Search tuning on mock splits
-            scaler_mock = MagicMock()
-            X_train_lr_mock = X_train.copy()
+            results = tune_pipeline(X_train, y_train, model_name="both")
             
-            best_lr, best_lr_params, _, best_rf, best_rf_params, _ = tune_models(
-                X_train, y_train, X_train_lr_mock
-            )
-            
-            assert best_lr is not None
-            assert best_rf is not None
+            assert "logistic_regression" in results
+            assert "random_forest" in results
+            assert results["logistic_regression"]["pipeline"] is not None
+            assert results["random_forest"]["pipeline"] is not None
 
 def test_telemetry_predictor(mock_csv_data):
     """Validates the in-process TelemetryPredictor classifies telemetry inputs correctly."""
@@ -70,15 +67,12 @@ def test_telemetry_predictor(mock_csv_data):
     with patch("os.path.exists", return_value=True), \
          patch("joblib.load") as mock_load:
         
-        # Mock scaler, rf, lr models
-        mock_scaler = MagicMock()
-        mock_rf = MagicMock()
-        mock_rf.predict.return_value = [1]
-        mock_rf.predict_proba.return_value = [[0.1, 0.9]]
+        # Mock V3 sklearn Pipeline
+        mock_pipeline = MagicMock()
+        mock_pipeline.predict.return_value = [1]
+        mock_pipeline.predict_proba.return_value = [[0.1, 0.9]]
         
-        mock_lr = MagicMock()
-        
-        mock_load.side_effect = [mock_scaler, mock_rf, mock_lr]
+        mock_load.return_value = mock_pipeline
         
         predictor = TelemetryPredictor()
         

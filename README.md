@@ -1,179 +1,177 @@
-# ⚙️ opsFlow: Standalone RAG Intelligence & Predictive Maintenance Diagnostic System
+# opsFlow — AI Developer Technical Assessment
 
-Welcome to **opsFlow**, an enterprise-grade, fully modular Python backend system designed for real-time equipment telemetry diagnostics and grounded technical knowledge retrieval in manufacturing and industrial operations.
+Two deliverables in one repository:
 
-This project is a 100% technical, assignment-focused python repository, strictly structured around two primary engineering modules:
-1. **Task 3 — Equipment Failure Prediction (Traditional ML)**
-2. **Task 4 — Retrieval-Based AI Assistant (RAG Basics)**
+| Task | Description | Entry point |
+|------|-------------|-------------|
+| **Task 3** | Equipment failure prediction (Logistic Regression + Random Forest) | `main.py --train` / `--evaluate` / `--predict` |
+| **Task 4** | Retrieval-based maintenance assistant (RAG) | `main.py --query` / `--interactive` |
 
-There are zero frontend UI/Streamlit dashboards or SaaS complexities, maintaining a razor-sharp focus on production-grade Python architecture, full test suites, and clean command-line interfaces.
+Dataset: [AI4I 2020 Predictive Maintenance](https://archive.ics.uci.edu/ml/datasets/ai4i+2020+predictive+maintenance) (`data/ai4i2020.csv`).  
+Knowledge base: maintenance manuals in `docs/`.
 
 ---
 
-## ⚡ Setup & Local Operations
-
-### 1. Prerequisites
-Ensure Python 3.10 to 3.14 is installed on your local macOS or Linux machine.
+## Setup (one time)
 
 ```bash
-# Clone the repository
-git clone <repository-url>
 cd opsFlow
-
-# Create a clean virtual environment
 python3 -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+pip install -r requirements.txt   # or: make install
+cp .env.example .env              # then set GROQ_API_KEY for live RAG answers
+```
+
+> **macOS:** Use `python3`, not `python`. After `source venv/bin/activate`, you can use `python`.
+
+---
+
+## Required CLI commands
+
+Run these from the project root with the virtual environment activated.
+
+### Task 3 — Equipment Failure Prediction
+
+```bash
+# 1. Train Logistic Regression + Random Forest (saves models/artifacts/)
+python main.py --train
+
+# 2. Evaluate on holdout set (metrics table + plots)
+python main.py --evaluate
+
+# 3. Predict failure from telemetry JSON
+python main.py --predict '{"Type":"L","Air temperature [K]":300.0,"Process temperature [K]":310.5,"Rotational speed [rpm]":1500.0,"Torque [Nm]":40.0,"Tool wear [min]":50.0}'
+```
+
+**Makefile shortcuts:**
+
+```bash
+make train
+make evaluate
+make test
+```
+
+**Outputs:**
+
+| Output | Location |
+|--------|----------|
+| Trained pipelines | `models/artifacts/*_pipeline.pkl` |
+| Metrics JSON | `models/artifacts/evaluation_summary.json` |
+| Plots (confusion matrix, ROC, PR, SHAP) | `models/artifacts/plots/` |
+| Feature engineering notes | `docs/TASK3_FEATURE_ENGINEERING.md` |
+
+---
+
+### Task 4 — Retrieval-Based AI Assistant
+
+```bash
+# 1. Single grounded query (prints retrieved chunks + answer)
+python main.py --query "What is the LOTO procedure for hydraulic systems?"
+
+# 2. Interactive maintenance chat
+python main.py --interactive
+
+# 3. Out-of-domain test (should refuse)
+python main.py --query "What is the capital of France?"
+```
+
+**Optional:**
+
+```bash
+python main.py --clear-cache          # reset query cache
+python main.py --use-semantic-chunking  # semantic chunking on re-index
+```
+
+**Outputs:**
+
+| Output | Location |
+|--------|----------|
+| Retrieved chunks (terminal) | printed after each query |
+| Chunk audit log | `logs/retrieved_chunks.log` |
+| Vector index | `rag/vector_store/` |
+
+**KB refusal (low confidence / out of domain):**
+
+> I could not find this in the knowledge base.
+
+Without `GROQ_API_KEY` in `.env`, retrieval still runs; answers use a mock generator.
+
+---
+
+### Full demo sequence (copy-paste)
+
+```bash
+cd /path/to/opsFlow
 source venv/bin/activate
 
-# Install CPU-optimized requirements
-make install
+# Task 3
+python main.py --train
+python main.py --evaluate
+python main.py --predict '{"Type":"L","Air temperature [K]":300.0,"Process temperature [K]":310.5,"Rotational speed [rpm]":1500.0,"Torque [Nm]":40.0,"Tool wear [min]":50.0}'
+
+# Task 4 (first run downloads embedding models — ~30s)
+python main.py --query "What are the safety procedures for high voltage equipment?"
 ```
 
-### 2. Configure Environment
-Copy `.env.example` to `.env` and fill in your Groq API credentials:
+---
+
+## Sample metrics (holdout test set)
+
+| Metric | Logistic Regression | Random Forest |
+|--------|--------------------:|--------------:|
+| Accuracy | 0.86 | 0.99 |
+| Recall | 0.87 | 0.85 |
+| Precision | 0.18 | 0.85 |
+| F1 | 0.30 | 0.85 |
+| ROC-AUC | 0.94 | 0.97 |
+
+See `models/artifacts/evaluation_summary.json` for full results after `make evaluate`.
+
+---
+
+## Tests
+
 ```bash
-cp .env.example .env
+make test
+# or
+ML_N_JOBS=1 pytest tests/ -v
 ```
-*An active `GROQ_API_KEY` is required to run the real LLM-backed generator and factual claims auditor. If not present, the system automatically falls back to an elegant mock environment for local testing.*
 
 ---
 
-## 🚀 CLI Commands & Hook Reference
+## Assumptions
 
-Use `main.py` or the provided `Makefile` hooks to execute the pipelines:
+- Binary target `Machine failure`; sub-failure columns are leakage and dropped.
+- Stratified 80/20 train/test split; scaling inside sklearn `Pipeline` only.
+- RAG answers use retrieved maintenance docs only; confidence threshold 0.30 triggers KB refusal.
+- Groq API used for generation when `GROQ_API_KEY` is set.
 
-### ⚙️ Task 3 — Predictive Maintenance ML Pipeline
-- **Run python unit and integration tests**:
-  ```bash
-  make test
-  ```
-- **Train models, scale, tune hyperparameters, and cache data splits**:
-  ```bash
-  make train
-  # OR: ./venv/bin/python main.py --train
-  ```
-- **Perform holdout evaluations, generate comparison curves, and export SHAP local explainability**:
-  ```bash
-  make evaluate
-  # OR: ./venv/bin/python main.py --evaluate
-  ```
-- **Predict equipment failure from a raw JSON telemetry string**:
-  ```bash
-  ./venv/bin/python main.py --predict '{"Type": "L", "Air temperature [K]": 300.0, "Process temperature [K]": 310.5, "Rotational speed [rpm]": 1500.0, "Torque [Nm]": 40.0, "Tool wear [min]": 50.0}'
-  ```
+## Trade-offs
 
-### 🛠️ Task 4 — Retrieval-Augmented Generation (RAG) Assistant
-- **Submit a single grounded query to the assistant**:
-  ```bash
-  ./venv/bin/python main.py --query "What are the symptoms and verification steps for a faulty Pressure Relief Valve PRV-200?"
-  ```
-- **Start a full interactive terminal RAG session loop**:
-  ```bash
-  ./venv/bin/python main.py --interactive
-  ```
-  *Inside the loop, type standard commands or special utilities: `/help`, `/clear` (clear screen), `/history` (show session queries), or `/save` (export transcript).*
-- **Purge the semantic query cache database**:
-  ```bash
-  ./venv/bin/python main.py --clear-cache
-  ```
+- **RF vs LR:** RF wins F1/precision on holdout; LR has higher recall but many false positives.
+- **RF overfitting:** train F1 > test F1 — see overfitting table in evaluate output.
+- **Hybrid retrieval:** BM25 + dense + rerank improves recall at higher CPU cost.
 
-### 🎓 Deep-Dive Architectural Explanations (Recruiter Review)
-Fast, zero-heavy-package CLI explanations outlining core architectural decisions:
-- **FAISS vs SQLite ChromaDB Vector Database**:
-  ```bash
-  ./venv/bin/python main.py --explain-chromadb
-  ```
-- **BM25 Lexical Matching vs Dense Embeddings**:
-  ```bash
-  ./venv/bin/python main.py --explain-bm25
-  ```
-- **Reciprocal Rank Fusion (RRF) vs Score Averaging**:
-  ```bash
-  ./venv/bin/python main.py --explain-rrf
-  ```
-- **Bi-Encoder Embeddings vs Deep Cross-Encoder Reranking**:
-  ```bash
-  ./venv/bin/python main.py --explain-rerank
-  ```
-- **Subject Relevance vs Factual Faithfulness Auditing**:
-  ```bash
-  ./venv/bin/python main.py --explain-faithfulness
-  ```
-- **Chunk Source Logging & Safety Compliance**:
-  ```bash
-  ./venv/bin/python main.py --explain-logging
-  ```
+## Future improvements
+
+- Probability calibration for operator thresholds.
+- Incremental vector index updates.
+- Stronger RF regularization in `config.yaml`.
 
 ---
 
-## 🛠️ Unified System Directory Structure
+## Project layout
 
 ```text
 opsFlow/
-├── core/                   # Core configurations and global definitions
-│   ├── config.py           # Environmental settings loader & folder generator
-│   ├── constants.py        # ML parameter thresholds & feature ordering
-│   └── security.py         # Rate limiters, sanitizers & regex firewalls
-├── data/                   # Raw telemetry sensor storage (ai4i2020.csv)
-├── docs/                   # High-density technical manuals for RAG ingestion
-│   ├── model_summary.json  # Synced ML performance metrics (cross-pipeline metadata)
-│   ├── cnc_lathe_spindle_systems.txt
-│   ├── safety_procedures.txt
-│   └── hydraulic_pneumatic_systems.txt  # (Total 10 dense manuals)
-├── models/                 # Machinery Diagnostics Classifiers (Task 3)
-│   ├── artifacts/          # Serialized models, splits, metrics & plots
-│   │   ├── plots/          # Performance curves & SHAP beeswarm/force plots
-│   │   ├── scaler.pkl      # Feature scaling checkpoint
-│   │   └── random_forest.pkl
-│   ├── train.py            # GridSearchCV hyperparameter tuning pipeline
-│   ├── evaluate.py         # Balanced vs SMOTE recall comparison & SHAP plots
-│   └── predict.py          # In-process real-time telemetry classifier
-├── rag/                    # Retrieval-Augmented Generation (Task 4)
-│   ├── vector_store/       # Persistent SQLite-backed ChromaDB vectors
-│   ├── chunking.py         # Sliding-window and sentence cosine semantic chunker
-│   ├── embeddings.py       # Dense text embedding model manager (SentenceTransformers)
-│   ├── generator.py        # Groq LLM completion engine & factual claims auditor
-│   ├── retriever.py        # Sparse BM25 + Dense RRF retriever and similarity cache
-│   └── pipeline.py         # Consolidated modular RAG orchestration pipeline
-├── tests/                  # Pytest QA Test Suite
-│   ├── conftest.py         # Tiny mock dataframe fixtures
-│   ├── test_ml.py          # Preprocessing, tuning, and telemetry calculations
-│   ├── test_rag_service.py # API client caching & key validation checks
-│   ├── test_retrieval.py   # Token splitting, lexical matches, and semantic cache
-│   └── test_security.py    # XSS blockages, firewalls, and token rate limits
-├── Makefile                # Unified developer CLI command hooks
-├── requirements.txt        # CPU-only optimized requirements (no CUDA/Triton)
-└── main.py                 # Root CLI Entrypoint
+├── main.py              # CLI for Tasks 3 & 4
+├── config.yaml
+├── data/ai4i2020.csv
+├── docs/                # RAG knowledge base
+├── models/              # train · evaluate · predict · artifacts/
+├── rag/                 # chunking · embeddings · vector_store · pipeline
+├── core/                # config · logging · security
+└── tests/
 ```
 
----
-
-## 🔍 Key Architectural Details
-
-### Task 3: Machinery Predictive Diagnostics (Traditional ML)
-* **Real-time Feature Engineering**: Engineers customized attributes like Process-Air thermal delta ($\Delta T$), mechanical power ($Torque \times RPM$), and stress-adjusted tool wear.
-* **Leakage Prevention**: Systematically drops all sub-failure category leakage columns (`TWF`, `HDF`, `PWF`, `OSF`, `RNF`) during preprocessing and keeps scaling strictly inside cross-validation splits.
-* **Recall Strategy Tuning**: Combines Stratified K-Fold CV GridSearch tuning with a comparative SMOTE oversampling study, generating absolute confusion matrices, ROC-AUC, and Precision-Recall comparison plots.
-* **Local Explainability**: Computes localized Shapley values (SHAP Beeswarm and Force plots) to give operators deep transparency into exact telemetry failure drivers.
-
-### Task 4: Retrieval-Augmented Generation (RAG Basics)
-* **High-Density Corpus**: Loaded with 35 technical chunks covering electrical safety, high-pressure hydraulics, vibrations, gear tribology, and LOTO.
-* **Hybrid Retrieval**: Combines high-IDF sparse lexical keyword matches (Okapi BM25) and dense embeddings (`all-MiniLM-L6-v2`) inside a thread-safe Reciprocal Rank Fusion (RRF) system.
-* **Deep Cross-Encoder Reranking**: Executes high-fidelity token-to-token attention using a CPU-based `cross-encoder/ms-marco-MiniLM-L-6-v2` over the candidate set, filtering down to the top 3 chunks.
-* **Calibrated Sigmoid Confidence**: Maps reranker raw outputs using a customized logistic sigmoid function to generate normalized confidence scores. Gracefully refuses out-of-domain queries when confidence falls below `0.30`.
-* **Grounding & Double-Pass Audit**: Prior to output, a secondary pass audits the generated answer using an LLM-based claims evaluator to check every claim against retrieved sources, ensuring factual faithfulness.
-* **Rate-Limit & Cache Protection**: Protects backends via an in-memory client-separated TokenBucket rate limiter, rate-limit retries with exponential backoffs, and an exact/semantic similarity query cache.
-
----
-
-## 📈 Quality Assurance (QA) & Robustness
-The application enforces strict software engineering standards verified by `pytest`:
-* **XSS Protection**: Asserts blockages against HTML script tag cross-site scripting (XSS).
-* **Prompt Injection Firewall**: Blocks adversarial prompt injections and instructions.
-* **Rate Limits**: Confirms TokenBucket rate limit parameters function correctly.
-* **Algorithm Correctness**: Validates lexical indexing, RRF ranking, cache hits, and ML feature calculations.
-
-Run all tests instantly:
-```bash
-make test
-```
-*All 13 unit, integration, and security tests execute cleanly in under 15 seconds.*
+See [ARCHITECTURE.md](ARCHITECTURE.md) and [METRICS.md](METRICS.md) for design notes.

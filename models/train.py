@@ -1,220 +1,342 @@
+"""
+models/train.py — Task 3: Equipment Failure Prediction
+=======================================================
+V3 Production Upgrade:
+  • sklearn Pipeline + ColumnTransformer (preprocessing integrated, leak-proof)
+  • Config-driven hyperparameters from config.yaml
+  • Python logging module (no print() calls)
+  • MLflow experiment tracking
+  • --model CLI argument for targeted training
+  • Full pipeline artifacts persisted as single .pkl for inference
+"""
 import os
 import sys
+import json
+import shutil
+import datetime
 import numpy as np
 import pandas as pd
 import joblib
-import json
-import datetime
-import shutil
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV
+
+from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV
 from sklearn.metrics import f1_score, roc_auc_score, precision_score, recall_score
 from imblearn.over_sampling import SMOTE
 
-# Ensure base dir is in path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 from core.config import settings
-from core.constants import RANDOM_STATE, TEST_SIZE, N_SPLITS, CONTINUOUS_COLS, TYPE_MAP
+from core.logger import get_logger
+from models.artifacts import ModelArtifactStore
+from models.data import load_dataset
+from models.features import engineer_features, prepare_data_pipeline
+from models.pipeline_builder import build_pipeline
 
-def load_dataset() -> pd.DataFrame:
-    """Loads the predictive maintenance dataset from a local CSV path."""
-    local_path = settings.DATASET_PATH
-    if local_path.exists():
-        print(f"[ML] Loading local dataset from: {local_path} ...")
-        return pd.read_csv(local_path)
-    raise FileNotFoundError(
-        f"Local CSV dataset not found at '{local_path}'. "
-        "Please ensure data/ai4i2020.csv exists."
-    )
+log = get_logger("models.train")
 
-def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Applies data engineering: encodes Type, removes ids, adds thermal delta & mechanical power."""
-    processed_df = df.copy()
-    
-    # Drop identifiers
-    cols_to_drop = [c for c in ['UDI', 'Product ID'] if c in processed_df.columns]
-    processed_df = processed_df.drop(columns=cols_to_drop)
-    
-    # Map Type (H=0, L=1, M=2)
-    if 'Type' in processed_df.columns:
-        if processed_df['Type'].dtype == object:
-            processed_df['Type'] = processed_df['Type'].map(TYPE_MAP).fillna(1).astype(int)
-            
-    # temp_diff: Difference process & air temp
-    processed_df['temp_diff'] = processed_df['Process temperature [K]'] - processed_df['Air temperature [K]']
-    
-    # power: Rotational speed * Torque
-    processed_df['power'] = processed_df['Torque [Nm]'] * processed_df['Rotational speed [rpm]']
-    
-    # wear_torque_ratio: Tool wear adjusted by torque stress
-    processed_df['wear_torque_ratio'] = processed_df['Tool wear [min]'] / (processed_df['Torque [Nm]'] + 1)
-    
-    return processed_df
+# Re-export for backward compatibility (tests, external imports)
+__all__ = [
+    "load_dataset",
+    "engineer_features",
+    "prepare_data_pipeline",
+    "build_pipeline",
+    "run_train",
+    "perform_cross_validation",
+    "tune_pipeline",
+]
 
-def prepare_data_pipeline(df: pd.DataFrame):
-    """Splits target class and drops data-leakage subset failure flags (TWF, HDF, PWF, OSF, RNF)."""
-    if 'Machine failure' not in df.columns:
-        raise ValueError("Machine failure target column is missing from dataset.")
-    
-    y = df['Machine failure']
-    
-    # Drop target and subset leakage columns
-    leakage_cols = ['Machine failure', 'TWF', 'HDF', 'PWF', 'OSF', 'RNF']
-    drop_cols = [c for c in leakage_cols if c in df.columns]
-    X = df.drop(columns=drop_cols)
-    
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
-    )
-    return X_train, X_test, y_train, y_test
 
-def perform_cross_validation(X: pd.DataFrame, y: pd.Series):
-    """Executes stratified 5-fold cross validation on baselines with in-fold scaling to prevent leakage."""
-    print("[ML] Performing 5-Fold Stratified Cross-Validation on baseline models...")
-    skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
-    scorers = ['f1', 'roc_auc', 'precision', 'recall']
-    
+# ---------------------------------------------------------------------------
+# Cross-validation baselines (inside-fold scaling)
+# ---------------------------------------------------------------------------
+
+def perform_cross_validation(X: pd.DataFrame, y: pd.Series, n_splits: int = None):
+    """
+    Executes stratified K-fold CV on baseline (untuned) LR and RF.
+    Scaling is fitted inside each fold via Pipeline to prevent data leakage.
+    """
+    n_splits = n_splits or settings.N_CV_SPLITS
+    log.info(f"Running {n_splits}-fold Stratified CV on baseline models...")
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=settings.RANDOM_STATE)
+
+    scorers = ["f1", "roc_auc", "precision", "recall"]
     lr_cv = {s: [] for s in scorers}
     rf_cv = {s: [] for s in scorers}
-    
-    for train_idx, val_idx in skf.split(X, y):
+
+    for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X, y), 1):
         X_tr, X_val = X.iloc[train_idx].copy(), X.iloc[val_idx].copy()
         y_tr, y_val = y.iloc[train_idx], y.iloc[val_idx]
-        
-        # Scale only continuous features
-        scaler = StandardScaler()
-        X_tr_scaled = X_tr.copy()
-        X_val_scaled = X_val.copy()
-        X_tr_scaled[CONTINUOUS_COLS] = scaler.fit_transform(X_tr[CONTINUOUS_COLS])
-        X_val_scaled[CONTINUOUS_COLS] = scaler.transform(X_val[CONTINUOUS_COLS])
-        
-        # Train baseline LR
-        lr = LogisticRegression(class_weight='balanced', max_iter=1000, random_state=RANDOM_STATE)
-        lr.fit(X_tr_scaled, y_tr)
-        lr_probs = lr.predict_proba(X_val_scaled)[:, 1]
-        lr_preds = lr.predict(X_val_scaled)
-        
-        # Train baseline RF
-        rf = RandomForestClassifier(class_weight='balanced', random_state=RANDOM_STATE)
-        rf.fit(X_tr, y_tr)
-        rf_probs = rf.predict_proba(X_val)[:, 1]
-        rf_preds = rf.predict(X_val)
-        
-        # Save metrics
-        lr_cv['f1'].append(f1_score(y_val, lr_preds))
-        lr_cv['roc_auc'].append(roc_auc_score(y_val, lr_probs))
-        lr_cv['precision'].append(precision_score(y_val, lr_preds, zero_division=0))
-        lr_cv['recall'].append(recall_score(y_val, lr_preds))
-        
-        rf_cv['f1'].append(f1_score(y_val, rf_preds))
-        rf_cv['roc_auc'].append(roc_auc_score(y_val, rf_probs))
-        rf_cv['precision'].append(precision_score(y_val, rf_preds, zero_division=0))
-        rf_cv['recall'].append(recall_score(y_val, rf_preds))
-        
+
+        # LR pipeline (fit scaler only on fold train data)
+        lr_pipe = build_pipeline(
+            LogisticRegression(class_weight="balanced", max_iter=1000, random_state=settings.RANDOM_STATE)
+        )
+        lr_pipe.fit(X_tr, y_tr)
+        lr_preds = lr_pipe.predict(X_val)
+        lr_probs = lr_pipe.predict_proba(X_val)[:, 1]
+
+        # RF pipeline
+        rf_pipe = build_pipeline(
+            RandomForestClassifier(class_weight="balanced", random_state=settings.RANDOM_STATE)
+        )
+        rf_pipe.fit(X_tr, y_tr)
+        rf_preds = rf_pipe.predict(X_val)
+        rf_probs = rf_pipe.predict_proba(X_val)[:, 1]
+
+        lr_cv["f1"].append(f1_score(y_val, lr_preds))
+        lr_cv["roc_auc"].append(roc_auc_score(y_val, lr_probs))
+        lr_cv["precision"].append(precision_score(y_val, lr_preds, zero_division=0))
+        lr_cv["recall"].append(recall_score(y_val, lr_preds))
+
+        rf_cv["f1"].append(f1_score(y_val, rf_preds))
+        rf_cv["roc_auc"].append(roc_auc_score(y_val, rf_probs))
+        rf_cv["precision"].append(precision_score(y_val, rf_preds, zero_division=0))
+        rf_cv["recall"].append(recall_score(y_val, rf_preds))
+
+        log.debug(f"Fold {fold_idx}: LR F1={lr_cv['f1'][-1]:.4f} | RF F1={rf_cv['f1'][-1]:.4f}")
+
+    log.info(f"Baseline LR — CV F1: {np.mean(lr_cv['f1']):.4f} | ROC-AUC: {np.mean(lr_cv['roc_auc']):.4f}")
+    log.info(f"Baseline RF — CV F1: {np.mean(rf_cv['f1']):.4f} | ROC-AUC: {np.mean(rf_cv['roc_auc']):.4f}")
     return lr_cv, rf_cv
 
-def tune_models(X_train: pd.DataFrame, y_train: pd.Series, X_train_lr: pd.DataFrame):
-    """Tunes hyper-parameters using GridSearchCV."""
-    print("[ML] Tuning Logistic Regression C and solver...")
-    lr_grid = {
-        'C': [0.01, 0.1, 1, 10],
-        'solver': ['lbfgs', 'liblinear']
-    }
-    lr = LogisticRegression(class_weight='balanced', max_iter=1000, random_state=RANDOM_STATE)
-    skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
-    lr_search = GridSearchCV(estimator=lr, param_grid=lr_grid, cv=skf, scoring='f1', n_jobs=-1)
-    lr_search.fit(X_train_lr, y_train)
-    print(f" -> Best LR Parameters: {lr_search.best_params_} (F1 Score: {lr_search.best_score_:.4f})")
-    
-    print("[ML] Tuning Random Forest depth and estimators...")
-    rf_grid = {
-        'n_estimators': [100, 200],
-        'max_depth': [None, 10, 20],
-        'min_samples_leaf': [1, 5]
-    }
-    rf = RandomForestClassifier(class_weight='balanced', random_state=RANDOM_STATE)
-    rf_search = GridSearchCV(estimator=rf, param_grid=rf_grid, cv=skf, scoring='f1', n_jobs=-1)
-    rf_search.fit(X_train, y_train)
-    print(f" -> Best RF Parameters: {rf_search.best_params_} (F1 Score: {rf_search.best_score_:.4f})")
-    
-    return lr_search.best_estimator_, lr_search.best_params_, lr_search.best_score_, \
-           rf_search.best_estimator_, rf_search.best_params_, rf_search.best_score_
 
-def run_train():
-    """Main execution flow for training the predictive models."""
-    print("==================================================")
-    print("    TASK 3 — PREDICTIVE ML PIPELINE: TRAINING     ")
-    print("==================================================")
-    
-    # 1. Load Data
+# ---------------------------------------------------------------------------
+# STEP 6 — GridSearchCV tuning
+# ---------------------------------------------------------------------------
+
+def tune_pipeline(X_train: pd.DataFrame, y_train: pd.Series, model_name: str = "both"):
+    """
+    Runs GridSearchCV over Pipeline with nested param keys (classifier__param).
+    Returns best estimator pipelines for selected models.
+    """
+    skf = StratifiedKFold(n_splits=settings.N_CV_SPLITS, shuffle=True, random_state=settings.RANDOM_STATE)
+    results = {}
+
+    if model_name in ("logistic_regression", "both"):
+        log.info("GridSearchCV — Tuning Logistic Regression pipeline...")
+        import yaml
+        with open(settings.CONFIG_PATH, "r") as f:
+            raw_cfg = yaml.safe_load(f)
+        lr_cfg_grid = raw_cfg.get("ml", {}).get("logistic_regression", {}).get("param_grid", {})
+        lr_param_grid = {f"classifier__{k}": v for k, v in lr_cfg_grid.items()}
+
+        lr_base = LogisticRegression(
+            class_weight="balanced", max_iter=1000, random_state=settings.RANDOM_STATE
+        )
+        lr_pipe = build_pipeline(lr_base)
+        n_jobs = int(os.environ.get("ML_N_JOBS", "-1"))
+        lr_search = GridSearchCV(lr_pipe, lr_param_grid, cv=skf, scoring="f1", n_jobs=n_jobs)
+        lr_search.fit(X_train, y_train)
+        log.info(f"Best LR params: {lr_search.best_params_} | CV F1: {lr_search.best_score_:.4f}")
+        results["logistic_regression"] = {
+            "pipeline": lr_search.best_estimator_,
+            "best_params": lr_search.best_params_,
+            "best_score": lr_search.best_score_,
+        }
+
+    if model_name in ("random_forest", "both"):
+        log.info("GridSearchCV — Tuning Random Forest pipeline...")
+        import yaml
+        with open(settings.CONFIG_PATH, "r") as f:
+            raw_cfg = yaml.safe_load(f)
+        rf_cfg_grid = raw_cfg.get("ml", {}).get("random_forest", {}).get("param_grid", {})
+        rf_param_grid = {f"classifier__{k}": v for k, v in rf_cfg_grid.items()}
+
+        rf_base = RandomForestClassifier(
+            class_weight="balanced", random_state=settings.RANDOM_STATE
+        )
+        rf_pipe = build_pipeline(rf_base)
+        rf_search = GridSearchCV(rf_pipe, rf_param_grid, cv=skf, scoring="f1", n_jobs=n_jobs)
+        rf_search.fit(X_train, y_train)
+        log.info(f"Best RF params: {rf_search.best_params_} | CV F1: {rf_search.best_score_:.4f}")
+        results["random_forest"] = {
+            "pipeline": rf_search.best_estimator_,
+            "best_params": rf_search.best_params_,
+            "best_score": rf_search.best_score_,
+        }
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# STEP 7 — MLflow logging helper
+# ---------------------------------------------------------------------------
+
+def _log_to_mlflow(model_name: str, params: dict, cv_score: float,
+                   lr_cv: dict, rf_cv: dict, artifacts_dir):
+    """Logs a training run to MLflow if enabled in config."""
+    if not settings.MLFLOW_ENABLED:
+        return
+    try:
+        import mlflow
+        mlflow.set_tracking_uri(settings.MLFLOW_TRACKING_URI)
+        mlflow.set_experiment(settings.MLFLOW_EXPERIMENT_NAME)
+
+        run_name = f"{settings.MLFLOW_RUN_NAME_PREFIX}_{model_name}_{datetime.datetime.now().strftime('%H%M%S')}"
+        with mlflow.start_run(run_name=run_name):
+            # Log hyperparameters
+            clean_params = {k.replace("classifier__", ""): v for k, v in params.items()
+                            if isinstance(v, (str, int, float, bool)) or v is None}
+            mlflow.log_params(clean_params)
+            mlflow.log_param("random_state", settings.RANDOM_STATE)
+            mlflow.log_param("test_size", settings.TEST_SIZE)
+            mlflow.log_param("n_cv_splits", settings.N_CV_SPLITS)
+
+            # Log CV metrics
+            mlflow.log_metric("cv_f1_mean", cv_score)
+            if lr_cv:
+                mlflow.log_metric("lr_cv_f1",     float(np.mean(lr_cv["f1"])))
+                mlflow.log_metric("lr_cv_roc_auc", float(np.mean(lr_cv["roc_auc"])))
+            if rf_cv:
+                mlflow.log_metric("rf_cv_f1",     float(np.mean(rf_cv["f1"])))
+                mlflow.log_metric("rf_cv_roc_auc", float(np.mean(rf_cv["roc_auc"])))
+
+            # Log model artifact
+            model_file = artifacts_dir / f"{model_name.replace(' ', '_').lower()}_pipeline.pkl"
+            if model_file.exists():
+                mlflow.log_artifact(str(model_file))
+
+            log.info(f"MLflow run '{run_name}' logged under experiment '{settings.MLFLOW_EXPERIMENT_NAME}'")
+    except Exception as e:
+        log.warning(f"MLflow logging failed (non-fatal): {e}")
+
+
+# ---------------------------------------------------------------------------
+# MAIN RUN FUNCTION
+# ---------------------------------------------------------------------------
+
+def run_train(model_name: str = "both"):
+    """
+    Complete V3 training pipeline:
+      1. Load & engineer features
+      2. Split (stratified)
+      3. 5-fold CV baselines
+      4. GridSearchCV pipeline tuning (ColumnTransformer + Classifier)
+      5. Persist full pipeline artifacts (no separate scaler needed)
+      6. Sync model_summary.json to RAG docs corpus
+      7. MLflow experiment tracking
+    """
+    log.info("=" * 52)
+    log.info("  TASK 3 — PREDICTIVE ML PIPELINE: TRAINING (V3)  ")
+    log.info("=" * 52)
+
+    # 1. Load
     raw_df = load_dataset()
-    print(f"[ML] Dataset loaded. Shape: {raw_df.shape}")
-    
-    # 2. Preprocess & Feature Engineer
+    failure_rate = float(raw_df[settings.TARGET_COL].mean())
+    log.info(f"Dataset failure rate: {failure_rate*100:.2f}%")
+
+    # 2. Engineer & split
     df = engineer_features(raw_df)
     X_train, X_test, y_train, y_test = prepare_data_pipeline(df)
-    
-    # 3. Scaling for Logistic Regression
-    X_train_scaled = X_train.copy()
-    X_test_scaled = X_test.copy()
-    scaler = StandardScaler()
-    X_train_scaled[CONTINUOUS_COLS] = scaler.fit_transform(X_train[CONTINUOUS_COLS])
-    X_test_scaled[CONTINUOUS_COLS] = scaler.transform(X_test[CONTINUOUS_COLS])
-    
-    # 4. Perform CV baselines
+
+    # 3. CV baselines
     lr_cv, rf_cv = perform_cross_validation(X_train, y_train)
-    print(f" -> Baseline LR CV F1-Score: {np.mean(lr_cv['f1']):.4f} | ROC-AUC: {np.mean(lr_cv['roc_auc']):.4f}")
-    print(f" -> Baseline RF CV F1-Score: {np.mean(rf_cv['f1']):.4f} | ROC-AUC: {np.mean(rf_cv['roc_auc']):.4f}")
-    
-    # 5. Model Tuning
-    best_lr, best_lr_params, best_lr_score, best_rf, best_rf_params, best_rf_score = tune_models(
-        X_train, y_train, X_train_scaled
-    )
-    
-    # 6. Serializing models & artifacts
+
+    # 4. GridSearchCV tuning
+    tuned = tune_pipeline(X_train, y_train, model_name=model_name)
+
+    # 5. Persist artifacts
     artifacts_dir = settings.MODEL_ARTIFACTS_DIR
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    
-    joblib.dump(best_lr, artifacts_dir / "logistic_regression.pkl")
-    joblib.dump(best_rf, artifacts_dir / "random_forest.pkl")
-    joblib.dump(scaler, artifacts_dir / "scaler.pkl")
-    
-    # Determine best features by RF relative importances
-    feature_names = X_train.columns.tolist()
-    importances = best_rf.feature_importances_
-    top_indices = np.argsort(importances)[::-1][:3]
-    top_features = [feature_names[i] for i in top_indices]
-    
-    failure_rate = float(raw_df['Machine failure'].mean())
-    
+
+    # Determine best model
+    best_model_name = "Random Forest"
+    best_cv_score = 0.0
+    top_features = []
+
+    store = ModelArtifactStore(artifacts_dir)
+
+    if "random_forest" in tuned:
+        rf_result = tuned["random_forest"]
+        rf_pipeline: Pipeline = rf_result["pipeline"]
+        store.save_pipeline(rf_pipeline, "random_forest")
+
+        # Extract feature importances from RF step
+        try:
+            rf_clf = rf_pipeline.named_steps["classifier"]
+            feature_names = X_train.columns.tolist()
+            importances = rf_clf.feature_importances_
+            top_indices = np.argsort(importances)[::-1][:3]
+            top_features = [feature_names[i] for i in top_indices]
+        except Exception:
+            top_features = []
+
+        if rf_result["best_score"] >= best_cv_score:
+            best_cv_score = rf_result["best_score"]
+            best_model_name = "Random Forest"
+
+    if "logistic_regression" in tuned:
+        lr_result = tuned["logistic_regression"]
+        lr_pipeline: Pipeline = lr_result["pipeline"]
+        store.save_pipeline(lr_pipeline, "logistic_regression")
+
+        if lr_result["best_score"] > best_cv_score:
+            best_cv_score = lr_result["best_score"]
+            best_model_name = "Logistic Regression"
+
+    # Legacy scaler.pkl — create a dummy so predict.py doesn't crash on older artifact loads
+    # In V3, scaling is embedded inside the Pipeline — no standalone scaler needed
+    dummy_scaler_path = artifacts_dir / "scaler.pkl"
+    if not dummy_scaler_path.exists():
+        from sklearn.preprocessing import StandardScaler
+        dummy = StandardScaler()
+        dummy.fit([[0]*len(settings.CONTINUOUS_COLS)])
+        joblib.dump(dummy, dummy_scaler_path)
+
+    # Cache splits for evaluate.py
+    joblib.dump((X_train, X_test, y_train, y_test),
+                artifacts_dir / "data_splits.pkl")
+    log.info("Data splits cached for evaluation script.")
+
+    # 6. Build and save training summary
+    best_params_serializable = {}
+    if "random_forest" in tuned:
+        for k, v in tuned["random_forest"]["best_params"].items():
+            clean_k = k.replace("classifier__", "")
+            best_params_serializable[clean_k] = (
+                int(v) if isinstance(v, (int, np.integer)) else v
+            )
+
     summary = {
         "run_timestamp": datetime.datetime.now().isoformat(),
-        "best_model": "Random Forest" if best_rf_score >= best_lr_score else "Logistic Regression",
-        "best_f1": round(float(max(best_rf_score, best_lr_score)), 4),
-        "best_roc_auc": round(float(np.mean(rf_cv['roc_auc'])), 4),
-        "best_params": {k: int(v) if isinstance(v, (np.integer, int)) else v for k, v in best_rf_params.items()},
+        "best_model": best_model_name,
+        "best_f1": round(float(best_cv_score), 4),
+        "best_roc_auc": round(float(np.mean(rf_cv["roc_auc"])) if rf_cv else 0.0, 4),
+        "best_params": best_params_serializable,
         "top_features": top_features,
-        "failure_rate_in_dataset": round(failure_rate, 4)
+        "failure_rate_in_dataset": round(failure_rate, 4),
+        "sklearn_pipeline": True,
+        "v3_upgrade": True
     }
-    
-    # Save training summary
     summary_path = artifacts_dir / "model_summary.json"
-    with open(summary_path, 'w', encoding='utf-8') as sf:
+    with open(summary_path, "w", encoding="utf-8") as sf:
         json.dump(summary, sf, indent=2)
-    print(f"[ML] Training metadata summary saved to: {summary_path}")
-    
-    # Sync with RAG documents
+    log.info(f"Training summary saved → {summary_path}")
+
+    # Sync to RAG docs
     docs_dir = settings.DOCS_DIR
     shutil.copy(summary_path, docs_dir / "model_summary.json")
-    print(f"[ML] Synced model summary directly to RAG corpus: {docs_dir / 'model_summary.json'}")
-    
-    # Save splits to temporary artifacts directory for evaluate.py to use
-    joblib.dump((X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled), artifacts_dir / "data_splits.pkl")
-    print("[ML] Data splits cached for evaluation script.")
-    print("[ML] Training step completed successfully.")
+    log.info(f"Model summary synced to RAG corpus: {docs_dir / 'model_summary.json'}")
+
+    # 7. MLflow logging
+    for name, result in tuned.items():
+        _log_to_mlflow(
+            model_name=name,
+            params=result["best_params"],
+            cv_score=result["best_score"],
+            lr_cv=lr_cv if name == "logistic_regression" else None,
+            rf_cv=rf_cv if name == "random_forest" else None,
+            artifacts_dir=artifacts_dir
+        )
+
+    log.info("Training pipeline completed successfully. ✓")
+    return summary
+
 
 if __name__ == "__main__":
-    run_train()
+    import argparse
+    parser = argparse.ArgumentParser(description="Train opsFlow ML classifiers.")
+    parser.add_argument("--model", choices=["random_forest", "logistic_regression", "both"],
+                        default="both", help="Which model(s) to train.")
+    args = parser.parse_args()
+    run_train(model_name=args.model)

@@ -6,13 +6,22 @@ from core.config import settings
 
 # Prompt injection regular expressions
 PROMPT_INJECTION_PATTERNS = [
-    re.compile(r"ignore\s+(?:the\s+)?(?:prior|previous|above)\s+instructions", re.IGNORECASE),
+    re.compile(
+        r"ignore\s+(?:the\s+)?(?:all|any|prior|previous|above)\s+instructions",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"disregard\s+(?:all|any|previous|prior)(?:\s+previous)?\s+instructions",
+        re.IGNORECASE,
+    ),
     re.compile(r"bypass\s+(?:system|security|safety|instructions)", re.IGNORECASE),
     re.compile(r"(?:acting|act)\s+as", re.IGNORECASE),
     re.compile(r"system\s+prompt\s+leak", re.IGNORECASE),
-    re.compile(r"reveal\s+your\s+system\s+prompt", re.IGNORECASE),
-    re.compile(r"print\s+your\s+instructions", re.IGNORECASE),
+    re.compile(r"reveal\s+(?:your\s+)?(?:system\s+)?prompt", re.IGNORECASE),
+    re.compile(r"print\s+(?:your\s+)?(?:system\s+)?(?:prompt|instructions)", re.IGNORECASE),
     re.compile(r"override\s+(?:grounding|instructions|controls)", re.IGNORECASE),
+    re.compile(r"you\s+are\s+now\s+(?:in\s+)?(?:developer|admin|root)\s+mode", re.IGNORECASE),
+    re.compile(r"do\s+anything\s+now", re.IGNORECASE),
 ]
 
 class TokenBucketRateLimiter:

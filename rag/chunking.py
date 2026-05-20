@@ -1,6 +1,7 @@
 import os
 import json
 import re
+from pathlib import Path
 import numpy as np
 
 def split_into_sentences(text: str) -> list[str]:
@@ -66,6 +67,16 @@ def semantic_chunk_text(text: str, embedder, similarity_threshold: float = 0.6, 
         print(f"[Chunking Warning] Semantic chunking failed: {e}. Falling back to sentences join.")
         return [" ".join(sentences)]
 
+from rag.ingestion.parsers import extract_text_from_file
+
+__all__ = [
+    "split_into_sentences",
+    "semantic_chunk_text",
+    "chunk_documents",
+    "extract_text_from_file",
+]
+
+
 def chunk_documents(docs_dir: str, embedder=None, chunk_size: int = 300, overlap: int = 50, use_semantic: bool = False) -> list[dict]:
     """
     Performs chunking across all text/JSON documents in docs_dir.
@@ -76,33 +87,17 @@ def chunk_documents(docs_dir: str, embedder=None, chunk_size: int = 300, overlap
     if not os.path.exists(docs_dir):
         raise FileNotFoundError(f"Documents directory not found: {docs_dir}")
         
-    filenames = sorted([f for f in os.listdir(docs_dir) if f.endswith('.txt') or f.endswith('.json')])
+    supported = ('.txt', '.json', '.pdf', '.docx')
+    filenames = sorted([f for f in os.listdir(docs_dir) if f.lower().endswith(supported)])
     
     global_chunk_idx = 0
     for filename in filenames:
-        file_path = os.path.join(docs_dir, filename)
-        if filename.endswith('.json'):
-            try:
-                with open(file_path, 'r', encoding='utf-8') as jf:
-                    data = json.load(jf)
-                
-                # Make dynamic summary text from task JSON metrics
-                text = (
-                    f"Machine Learning Model Summary and Training Results:\n"
-                    f"Training Timestamp: {data.get('run_timestamp')}\n"
-                    f"Best Performing Model: The best performing model is the {data.get('best_model')}.\n"
-                    f"Best F1 Score: The best F1 score achieved by the model is {data.get('best_f1')}.\n"
-                    f"Best ROC-AUC Score: The best ROC-AUC score is {data.get('best_roc_auc')}.\n"
-                    f"Best Model Hyperparameters: The best hyperparameters for the model are {data.get('best_params')}.\n"
-                    f"Top Features for Failure Prediction: The top 3 most important features for predicting equipment failure are {', '.join(data.get('top_features', []))}.\n"
-                    f"Dataset Failure Rate: The failure rate in the predictive maintenance dataset is {data.get('failure_rate_in_dataset') * 100:.1f}% (or {data.get('failure_rate_in_dataset')}).\n"
-                )
-            except Exception:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    text = f.read()
-        else:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                text = f.read()
+        file_path = Path(docs_dir) / filename
+        try:
+            text = extract_text_from_file(Path(file_path))
+        except Exception as e:
+            print(f"[Chunking Warning] Skipping {filename}: {e}")
+            continue
             
         # Select chunking strategy
         if use_semantic and embedder is not None:
