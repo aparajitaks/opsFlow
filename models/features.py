@@ -14,8 +14,8 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     drop_ids = [c for c in settings.DROP_ID_COLS if c in out.columns]
     out = out.drop(columns=drop_ids)
 
-    if "Type" in out.columns and out["Type"].dtype == object:
-        out["Type"] = out["Type"].map(settings.TYPE_MAP).fillna(1).astype(int)
+    if "Type" in out.columns and not pd.api.types.is_numeric_dtype(out["Type"]):
+        out["Type"] = out["Type"].astype(str).map(settings.TYPE_MAP).fillna(1).astype(int)
 
     out["temp_diff"] = out["Process temperature [K]"] - out["Air temperature [K]"]
     out["power"] = out["Torque [Nm]"] * out["Rotational speed [rpm]"]

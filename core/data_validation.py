@@ -59,9 +59,9 @@ def validate_dataset(df: pd.DataFrame, *, strict: bool = True) -> pd.DataFrame:
     if target.nunique() < 2:
         raise DatasetValidationError("Target column has only one class — cannot train classifier.")
 
-    # Type values
-    if out["Type"].dtype == object:
-        invalid_types = set(out["Type"].unique()) - set(settings.TYPE_MAP.keys())
+    # Type values (object or pandas StringDtype on Linux CI)
+    if not pd.api.types.is_numeric_dtype(out["Type"]):
+        invalid_types = set(out["Type"].astype(str).unique()) - set(settings.TYPE_MAP.keys())
         if invalid_types and strict:
             raise DatasetValidationError(f"Unknown Type values: {invalid_types}")
 

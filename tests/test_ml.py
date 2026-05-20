@@ -27,6 +27,21 @@ def test_preprocessing_and_features(mock_csv_data):
         # Air = 300.0, Process = 310.5 -> temp_diff = 10.5
         assert df_eng["temp_diff"].iloc[0] == pytest.approx(10.5)
 
+
+def test_type_encoding_string_dtype():
+    """Linux CI: pandas StringDtype must be encoded (not only object dtype)."""
+    df = pd.DataFrame({
+        "Type": pd.Series(["L", "M", "H", "L"], dtype="string"),
+        "Air temperature [K]": [300.0, 301.0, 302.0, 303.0],
+        "Process temperature [K]": [310.0, 311.0, 312.0, 313.0],
+        "Rotational speed [rpm]": [1500.0, 1501.0, 1502.0, 1503.0],
+        "Torque [Nm]": [40.0, 41.0, 42.0, 43.0],
+        "Tool wear [min]": [0.0, 1.0, 2.0, 3.0],
+        "Machine failure": [0, 0, 1, 0],
+    })
+    eng = engineer_features(df)
+    assert pd.api.types.is_integer_dtype(eng["Type"])
+
 def test_pipeline_splits(mock_csv_data):
     """Checks train_test_split and leakage prevention columns removal."""
     with patch("core.config.settings.DATASET_PATH", mock_csv_data):
