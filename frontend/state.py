@@ -58,16 +58,12 @@ def get_model_status() -> dict | None:
 def trigger_retraining() -> dict | None:
     """Asynchronously triggers the ML hyperparameter tuning and model retraining pipeline."""
     try:
-        # Lazy import to prevent training logic/kagglehub imports at Streamlit startup
-        from models.pipeline import run_ml_pipeline
-        
-        # Prevent UI freezing by spinning up retraining in a background thread
-        bg_thread = threading.Thread(target=run_ml_pipeline, daemon=True)
-        bg_thread.start()
+        # Step 5 - Temporary Stability Fix: Commented out run_ml_pipeline to prevent training execution on deployment.
+        # from models.pipeline import run_ml_pipeline
         
         return {
             "status": "training_started",
-            "message": "Equipment failure ML retraining pipeline triggered in the background. Check logs or model status for completions."
+            "message": "Equipment failure ML retraining is disabled in deployment mode. Pre-trained models are loaded dynamically."
         }
     except Exception as e:
         st.error(f"Failed to start retraining pipeline: {e}")

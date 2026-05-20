@@ -1,12 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
-try:
-    import kagglehub
-    from kagglehub import KaggleDatasetAdapter
-except ImportError:
-    kagglehub = None
-    KaggleDatasetAdapter = None
+# KaggleHub imports removed completely for safe offline inference-only deployment
 
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
@@ -25,23 +20,11 @@ def load_dataset() -> pd.DataFrame:
         print(f"Loading local dataset from: {local_path} ...")
         return pd.read_csv(local_path)
         
-    if kagglehub is None:
-        raise ImportError(
-            "Local CSV dataset is not found and 'kagglehub' is not available to download it. "
-            "Please ensure the dataset file exists locally at data/ai4i2020.csv"
-        )
-        
-    print("Local CSV not found. Loading dataset via KaggleHub...")
-    df = kagglehub.dataset_load(
-        KaggleDatasetAdapter.PANDAS,
-        "stephanmatzka/predictive-maintenance-dataset-ai4i-2020",
-        "ai4i2020.csv",
+    raise FileNotFoundError(
+        f"Local CSV dataset not found at '{local_path}'. "
+        "Deployment cannot download datasets or access Kaggle APIs. "
+        "Please ensure the dataset file exists locally."
     )
-    
-    local_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(local_path, index=False)
-    print(f"Saved local copy to: {local_path}")
-    return df
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """
