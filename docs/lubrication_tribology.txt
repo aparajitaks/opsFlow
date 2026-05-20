@@ -1,0 +1,57 @@
+================================================================================
+                    INDUSTRIAL LUBRICATION & TRIBOLOGY MANUAL
+                OPERATIONAL LUBRICANT STANDARDS & DOSING PARAMETERS
+================================================================================
+
+1. LUBRICANT CLASSIFICATION AND NLGI GRADES
+To minimize friction and prevent surface wear across rotating assemblies, the opsFlow equipment array uses strictly defined lubricants matching international standards:
+- NLGI Classification: The National Lubricating Grease Institute defines grease consistency.
+  * NLGI Grade 2: Medium-consistency grease (resembling peanut butter) used as the baseline for all high-speed spindle bearings, electric motor bearings, and general conveyor couplings.
+  * NLGI Grade 1: Softer grease (resembling tomato paste) used in centralized automatic lubrication dosing lines operating in cold ambient sectors (< 10°C) to prevent line blockage.
+- Base Oil Viscosity: All grease formulations must utilize a synthetic hydrocarbon base oil with a kinematic viscosity of exactly 100 cSt at 40°C (Grease Class: Lith-SHC-100).
+
+---
+
+2. TRIBOLOGY DIAGNOSTICS & WEAR DEBRIS ANALYSIS (WDA)
+When machinery operates under load, metal-to-metal friction generates microscopic particles that suspend in the lubricating oil. Technicians can analyze this wear debris to diagnose early internal failures before physical symptoms appear:
+
+WDA Method 2.1: Atomic Emission Spectroscopy (AES)
+AES burns a small oil sample in an electric arc, measuring the light spectrum emitted to identify specific elemental concentrations in parts per million (ppm).
+- Iron (Fe) Concentration: An increase in Fe (> 50 ppm) indicates severe wear on gears, shafts, or bearing races.
+- Copper (Cu) and Bronze: An increase in Cu (> 25 ppm) indicates wear on bronze cage retainers, thrust washers, or hydraulic piston slippers.
+- Silicon (Si) Concentration: Any level of Si above 15 ppm indicates environmental dust or sand is entering the gearbox seals, forming an abrasive lapping slurry that accelerates machine destruction.
+
+WDA Method 2.2: Analytical Ferrography
+An oil sample is passed over a sloped magnetic glass slide. Ferrous particles are separated by size along the slide, allowing technicians to inspect particle shapes under a microscope:
+- Cutting Wear Particles: Long, curly wire-like steel shavings indicate a hard abrasive contaminant is plowing grooves into a moving shaft seat, signaling seal failure.
+- Fatigue Spall Particles: Flat, jagged metallic flakes indicate surface fatigue on gear teeth or bearing races, warning that pitting is underway and failure is imminent.
+
+---
+
+3. GREASE GUN CALIBRATION & MANUAL GREASE PORTS
+Technicians frequently over-grease or under-grease bearings during weekly PM rounds because they do not calibrate manual grease guns, leading to seal failure and high friction.
+
+Calibration Step 3.1: Grams-per-Stroke Measurement
+Every grease gun has a different volumetric displacement per full pump stroke.
+- Calibration Method: Prior to PM rounds, the technician must pump exactly 10 full strokes of the grease gun onto a calibrated digital balance scale.
+- Calculation: Divide the total weight in grams by 10 to obtain the "Grams-per-Stroke" factor.
+  * Example: If 10 strokes weigh 15.0 grams, the factor is exactly 1.5 grams per stroke.
+  * Application: If a bearing manual calls for exactly 6.0 grams of grease during a PM cycle, the technician must apply exactly 4 full pump strokes (6.0g / 1.5g per stroke = 4 strokes). Never guess or pump until grease squeezes out of the seals, as this ruptures the rubber lip seals and allows cutting fluid ingress.
+
+Calibration Step 3.2: Clearing Clogged Grease Ports
+If a manual grease port refuses to accept grease and the grease gun handle blocks (pressure spike):
+1. Never apply extreme pressure to force grease through, as this can shatter the check-valve pin.
+2. Remove the Zerk grease fitting (M8 thread) using a socket wrench.
+3. Clean the fitting in a solvent parts washer and inspect the internal spring-loaded steel ball. If the ball is stuck or rusted shut, replace the fitting.
+4. If the port chamber is blocked with hardened, oxidized grease, insert a heated wire probe into the port to melt the wax block, or inject a specialized high-solvent grease purging fluid to dissolve the sludge.
+
+---
+
+4. CENTRALIZED AUTOMATIC LUBRICATION SYSTEMS
+To maintain continuous grease dosing on linear guides and ballscrews, opsFlow utilizes a centralized automatic lubrication pump (Model: Lube-Flow-10) with a 2-liter grease reservoir.
+
+Auto Dosing Parameters:
+- Dosing Cycle Interval: The pump controller is programmed to run for exactly 15 seconds every 4 operating hours.
+- Volumetric Output: The pump delivers exactly 0.25 cubic centimeters (cc) of NLGI Grade 1 grease per lubrication port point during each run cycle.
+- Low-Level Safety Interlock: If the reservoir grease level drops below 10%, a magnetic float switch triggers a "Lubrication Low Level Alert" on the primary HMI. If the level drops below 5%, the system triggers an emergency interlock, halting the CNC lathe axes to prevent dry ballscrew scoring.
+- Pressure Line Monitoring: An inline pressure transducer monitors grease line pressure. During a cycle, pressure should rise to 35 bar, then decay back to 2 bar as the progress injectors discharge. If line pressure fails to reach 25 bar, a line leak is present. If pressure exceeds 50 bar, a grease line blockage exists.

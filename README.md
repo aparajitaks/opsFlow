@@ -1,86 +1,19 @@
-# 🔧 opsFlow: Standalone RAG Intelligence & Predictive Maintenance Diagnostic System
+# ⚙️ opsFlow: Standalone RAG Intelligence & Predictive Maintenance Diagnostic System
 
-Welcome to **opsFlow**, an enterprise-grade, fully self-contained AI system designed for real-time equipment telemetry diagnostics and grounded technical knowledge retrieval in manufacturing and industrial settings.
+Welcome to **opsFlow**, an enterprise-grade, fully modular Python backend system designed for real-time equipment telemetry diagnostics and grounded technical knowledge retrieval in manufacturing and industrial operations.
 
-This application has been engineered to run as a **single, unified, standalone Streamlit application** fully optimized for CPU-only nodes and seamless, robust **Streamlit Cloud deployments** with zero external service or backend dependencies.
+This project is a 100% technical, assignment-focused python repository, strictly structured around two primary engineering modules:
+1. **Task 3 — Equipment Failure Prediction (Traditional ML)**
+2. **Task 4 — Retrieval-Based AI Assistant (RAG Basics)**
 
----
-
-## 🚀 Key Architectural Innovations
-
-### 1. Direct In-Process Execution
-No complex microservice networking or broken localhost APIs. The frontend and backend layers are fused directly inside a single Python process space. The interactive dashboard invokes the RAG pipeline and machine failure classifier via optimized, thread-safe Python interfaces.
-
-### 2. High-Performance Hybrid Retrieval & Reranking
-- **Keyword Search (Sparse)**: Exact code search and manual indexing via `rank-bm25` (Okapi BM25).
-- **Dense Vector Search**: Semantic context querying via `ChromaDB` and the HuggingFace `all-MiniLM-L6-v2` dense embedder.
-- **Fusion & Reranking**: Reciprocal Rank Fusion (RRF) prioritizes multi-channel hits, followed by a second-pass re-ranking using an `ms-marco-MiniLM-L-6-v2` Cross-Encoder.
-- **Double-Pass Audit**: Responses are validated via a double-pass LLM claim auditor that flags factual hallucinations, rendering instant visual metrics of answer confidence.
-
-### 3. Machine Learning Equipment Telemetry Diagnostics
-- **Real-time Feature Engineering**: Calculates live equipment indices like delta temperature (ΔT), rotational power, and torque-wear ratios directly from input sliders.
-- **Inference & Explainability**: Predicts machine breakdown states and likelihoods using tuned, serialized Random Forest and Logistic Regression models.
-- **Interactive MLOps Tab**: Allows operators to trigger background retraining sweeps and view evaluation curves (ROC-AUC, Precision-Recall) and local explainability (SHAP).
-
-### 4. Recruiter-Ready UI Aesthetics
-- **Typography**: Custom Google Font integration using modern 'Outfit' sans-serif.
-- **Design System**: Harmonious HSL colors, premium glassmorphism, and responsive CSS containers.
-- **Smooth Micro-Animations**: Native Streamlit elements enhanced with sleek dark-mode custom-themed cards.
-
----
-
-## 🛠️ Unified System Directory Structure
-
-```text
-opsFlow/
-├── .streamlit/             # Streamlit configuration settings & styling
-│   └── config.toml         # Custom fonts, headless options & dark mode
-├── core/                   # Core configurations and global definitions
-│   ├── config.py           # Environmental settings parser
-│   ├── constants.py        # ML thresholds and RAG parameter bounds
-│   └── security.py         # Rate limiters, HTML sanitizers & prompt-injection firewalls
-├── data/                   # Raw telemetry sensor storage (ai4i2020.csv)
-├── docs/                   # Technical manuals & equipment specs for RAG ingestion
-├── evaluation/             # Grounding validation modules
-│   └── faithfulness.py     # Double-pass LLM claim auditor (factual checker)
-├── frontend/               # Streamlit Modular Interface
-│   ├── components/         # Modular layout views
-│   │   ├── chat_panel.py   # RAG conversational chatbot & audit cards
-│   │   └── telemetry_panel.py # Simulated equipment failure diagnostic sliders
-│   ├── app.py              # Main dashboard entrypoint & style injectors
-│   └── state.py            # Direct-in-process state controllers & log tailers
-├── models/                 # Machinery Diagnostics Classifiers
-│   ├── pipeline.py         # Hyperparameter CV sweep and tuning execution
-│   ├── preprocessing.py    # Feature engineering formulas & SMOTE balance
-│   └── training.py         # Stratified cross-validation model tuning
-├── retrieval/              # RAG Search & Cache Pipelines
-│   ├── bm25.py             # Sparse keyword indexing (Okapi BM25)
-│   ├── cache.py            # Vector-similarity query caching (Exact & Semantic)
-│   ├── chunker.py          # Sliding-window & semantic sentence chunking
-│   ├── embedder.py         # Dense sentence embedding pipeline
-│   ├── hybrid.py           # Reciprocal Rank Fusion (RRF) combiner
-│   └── reranker.py         # Cross-Encoder second-pass ranking
-├── tests/                  # Pytest QA Test Suite
-│   ├── conftest.py         # Reusable mock fixtures
-│   ├── test_ml.py          # Telemetry calculations and fit operations
-│   ├── test_retrieval.py   # Sentence splitting, RRF ranks, and cache hits
-│   └── test_security.py    # XSS blockages, firewalls, and token rate limits
-├── utils/                  # Structured logging helpers
-│   └── logger.py           # Performance and RAG audit log writer
-├── Dockerfile              # Unified single-stage image for production
-├── Makefile                # Single-process operational command hooks
-├── packages.txt            # System-level graphics packages for Streamlit Cloud
-├── requirements.txt        # CPU-only optimized requirements (no CUDA/Triton)
-├── run_all.py              # One-command developer pipeline initializer
-└── streamlit_app.py        # Root entrypoint compatibility redirect layer
-```
+There are zero frontend UI/Streamlit dashboards or SaaS complexities, maintaining a razor-sharp focus on production-grade Python architecture, full test suites, and clean command-line interfaces.
 
 ---
 
 ## ⚡ Setup & Local Operations
 
 ### 1. Prerequisites
-Ensure Python 3.10 to 3.12 is installed on your local machine.
+Ensure Python 3.10 to 3.14 is installed on your local macOS or Linux machine.
 
 ```bash
 # Clone the repository
@@ -100,44 +33,147 @@ Copy `.env.example` to `.env` and fill in your Groq API credentials:
 ```bash
 cp .env.example .env
 ```
-*Provide your key under `GROQ_API_KEY` to enable active LLM conversational QA generation and claim auditing.*
+*An active `GROQ_API_KEY` is required to run the real LLM-backed generator and factual claims auditor. If not present, the system automatically falls back to an elegant mock environment for local testing.*
 
-### 3. Commands & Execution
-Use the provided `Makefile` to instantly manage operations:
+---
 
-- **Run unit, integration, and security tests**:
+## 🚀 CLI Commands & Hook Reference
+
+Use `main.py` or the provided `Makefile` hooks to execute the pipelines:
+
+### ⚙️ Task 3 — Predictive Maintenance ML Pipeline
+- **Run python unit and integration tests**:
   ```bash
   make test
   ```
-- **Train models & export evaluation plots**:
+- **Train models, scale, tune hyperparameters, and cache data splits**:
   ```bash
   make train
+  # OR: ./venv/bin/python main.py --train
   ```
-- **Run the application locally**:
+- **Perform holdout evaluations, generate comparison curves, and export SHAP local explainability**:
   ```bash
-  make run
+  make evaluate
+  # OR: ./venv/bin/python main.py --evaluate
   ```
-- **Initialize training + run the application in one step**:
+- **Predict equipment failure from a raw JSON telemetry string**:
   ```bash
-  python run_all.py
+  ./venv/bin/python main.py --predict '{"Type": "L", "Air temperature [K]": 300.0, "Process temperature [K]": 310.5, "Rotational speed [rpm]": 1500.0, "Torque [Nm]": 40.0, "Tool wear [min]": 50.0}'
   ```
-- **Clean cached files & bytecode**:
+
+### 🛠️ Task 4 — Retrieval-Augmented Generation (RAG) Assistant
+- **Submit a single grounded query to the assistant**:
   ```bash
-  make clean
+  ./venv/bin/python main.py --query "What are the symptoms and verification steps for a faulty Pressure Relief Valve PRV-200?"
   ```
+- **Start a full interactive terminal RAG session loop**:
+  ```bash
+  ./venv/bin/python main.py --interactive
+  ```
+  *Inside the loop, type standard commands or special utilities: `/help`, `/clear` (clear screen), `/history` (show session queries), or `/save` (export transcript).*
+- **Purge the semantic query cache database**:
+  ```bash
+  ./venv/bin/python main.py --clear-cache
+  ```
+
+### 🎓 Deep-Dive Architectural Explanations (Recruiter Review)
+Fast, zero-heavy-package CLI explanations outlining core architectural decisions:
+- **FAISS vs SQLite ChromaDB Vector Database**:
+  ```bash
+  ./venv/bin/python main.py --explain-chromadb
+  ```
+- **BM25 Lexical Matching vs Dense Embeddings**:
+  ```bash
+  ./venv/bin/python main.py --explain-bm25
+  ```
+- **Reciprocal Rank Fusion (RRF) vs Score Averaging**:
+  ```bash
+  ./venv/bin/python main.py --explain-rrf
+  ```
+- **Bi-Encoder Embeddings vs Deep Cross-Encoder Reranking**:
+  ```bash
+  ./venv/bin/python main.py --explain-rerank
+  ```
+- **Subject Relevance vs Factual Faithfulness Auditing**:
+  ```bash
+  ./venv/bin/python main.py --explain-faithfulness
+  ```
+- **Chunk Source Logging & Safety Compliance**:
+  ```bash
+  ./venv/bin/python main.py --explain-logging
+  ```
+
+---
+
+## 🛠️ Unified System Directory Structure
+
+```text
+opsFlow/
+├── core/                   # Core configurations and global definitions
+│   ├── config.py           # Environmental settings loader & folder generator
+│   ├── constants.py        # ML parameter thresholds & feature ordering
+│   └── security.py         # Rate limiters, sanitizers & regex firewalls
+├── data/                   # Raw telemetry sensor storage (ai4i2020.csv)
+├── docs/                   # High-density technical manuals for RAG ingestion
+│   ├── model_summary.json  # Synced ML performance metrics (cross-pipeline metadata)
+│   ├── cnc_lathe_spindle_systems.txt
+│   ├── safety_procedures.txt
+│   └── hydraulic_pneumatic_systems.txt  # (Total 10 dense manuals)
+├── models/                 # Machinery Diagnostics Classifiers (Task 3)
+│   ├── artifacts/          # Serialized models, splits, metrics & plots
+│   │   ├── plots/          # Performance curves & SHAP beeswarm/force plots
+│   │   ├── scaler.pkl      # Feature scaling checkpoint
+│   │   └── random_forest.pkl
+│   ├── train.py            # GridSearchCV hyperparameter tuning pipeline
+│   ├── evaluate.py         # Balanced vs SMOTE recall comparison & SHAP plots
+│   └── predict.py          # In-process real-time telemetry classifier
+├── rag/                    # Retrieval-Augmented Generation (Task 4)
+│   ├── vector_store/       # Persistent SQLite-backed ChromaDB vectors
+│   ├── chunking.py         # Sliding-window and sentence cosine semantic chunker
+│   ├── embeddings.py       # Dense text embedding model manager (SentenceTransformers)
+│   ├── generator.py        # Groq LLM completion engine & factual claims auditor
+│   ├── retriever.py        # Sparse BM25 + Dense RRF retriever and similarity cache
+│   └── pipeline.py         # Consolidated modular RAG orchestration pipeline
+├── tests/                  # Pytest QA Test Suite
+│   ├── conftest.py         # Tiny mock dataframe fixtures
+│   ├── test_ml.py          # Preprocessing, tuning, and telemetry calculations
+│   ├── test_rag_service.py # API client caching & key validation checks
+│   ├── test_retrieval.py   # Token splitting, lexical matches, and semantic cache
+│   └── test_security.py    # XSS blockages, firewalls, and token rate limits
+├── Makefile                # Unified developer CLI command hooks
+├── requirements.txt        # CPU-only optimized requirements (no CUDA/Triton)
+└── main.py                 # Root CLI Entrypoint
+```
+
+---
+
+## 🔍 Key Architectural Details
+
+### Task 3: Machinery Predictive Diagnostics (Traditional ML)
+* **Real-time Feature Engineering**: Engineers customized attributes like Process-Air thermal delta ($\Delta T$), mechanical power ($Torque \times RPM$), and stress-adjusted tool wear.
+* **Leakage Prevention**: Systematically drops all sub-failure category leakage columns (`TWF`, `HDF`, `PWF`, `OSF`, `RNF`) during preprocessing and keeps scaling strictly inside cross-validation splits.
+* **Recall Strategy Tuning**: Combines Stratified K-Fold CV GridSearch tuning with a comparative SMOTE oversampling study, generating absolute confusion matrices, ROC-AUC, and Precision-Recall comparison plots.
+* **Local Explainability**: Computes localized Shapley values (SHAP Beeswarm and Force plots) to give operators deep transparency into exact telemetry failure drivers.
+
+### Task 4: Retrieval-Augmented Generation (RAG Basics)
+* **High-Density Corpus**: Loaded with 35 technical chunks covering electrical safety, high-pressure hydraulics, vibrations, gear tribology, and LOTO.
+* **Hybrid Retrieval**: Combines high-IDF sparse lexical keyword matches (Okapi BM25) and dense embeddings (`all-MiniLM-L6-v2`) inside a thread-safe Reciprocal Rank Fusion (RRF) system.
+* **Deep Cross-Encoder Reranking**: Executes high-fidelity token-to-token attention using a CPU-based `cross-encoder/ms-marco-MiniLM-L-6-v2` over the candidate set, filtering down to the top 3 chunks.
+* **Calibrated Sigmoid Confidence**: Maps reranker raw outputs using a customized logistic sigmoid function to generate normalized confidence scores. Gracefully refuses out-of-domain queries when confidence falls below `0.30`.
+* **Grounding & Double-Pass Audit**: Prior to output, a secondary pass audits the generated answer using an LLM-based claims evaluator to check every claim against retrieved sources, ensuring factual faithfulness.
+* **Rate-Limit & Cache Protection**: Protects backends via an in-memory client-separated TokenBucket rate limiter, rate-limit retries with exponential backoffs, and an exact/semantic similarity query cache.
 
 ---
 
 ## 📈 Quality Assurance (QA) & Robustness
 The application enforces strict software engineering standards verified by `pytest`:
-- **Accuracy**: Verifies customized mathematical feature calculations and preprocessing formulas.
-- **Reliability**: Validates sentence segmentation, hybrid RRF priority rankings, and semantic cache hit checks.
-- **Security**: Asserts blockages against HTML script tag cross-site scripting (XSS), prompt-injection bypass instructions, and rate limit bucket capacities.
+* **XSS Protection**: Asserts blockages against HTML script tag cross-site scripting (XSS).
+* **Prompt Injection Firewall**: Blocks adversarial prompt injections and instructions.
+* **Rate Limits**: Confirms TokenBucket rate limit parameters function correctly.
+* **Algorithm Correctness**: Validates lexical indexing, RRF ranking, cache hits, and ML feature calculations.
 
 Run all tests instantly:
 ```bash
 make test
 ```
-
----
-*Architected for industrial-grade predictive analytics and grounded operations assistance, optimized for instant cloud review.*
+*All 13 unit, integration, and security tests execute cleanly in under 15 seconds.*

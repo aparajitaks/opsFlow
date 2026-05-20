@@ -1,5 +1,5 @@
 {
-  "evaluation_timestamp": "2026-05-20T14:44:17.402932",
+  "evaluation_timestamp": "2026-05-20T16:57:27.647556",
   "logistic_regression": {
     "recall": 0.8676,
     "precision": 0.1799,

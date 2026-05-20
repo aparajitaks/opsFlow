@@ -1,0 +1,75 @@
+================================================================================
+                    INDUSTRIAL SENSOR CALIBRATION & TELEMETRY
+                CALIBRATION PROCEDURES & LOOP TROUBLESHOOTING
+================================================================================
+
+1. INDUSTRIAL TRANSMITTER STANDARDS: THE 4-20MA CURRENT LOOP
+To communicate telemetry data (temperatures, pressures, flow rates, and rotational speeds) reliably across the plant floor over distances up to 300 meters, opsFlow utilizes standard 4-20mA current loops.
+- Advantage: Unlike voltage signals (0-10V) which suffer voltage drop over long wire runs and are highly sensitive to electromagnetic interference (EMI), current loops maintain constant current flow regardless of wire resistance.
+- Zero-Point Baseline (4mA): Represented by exactly 4.0 mA. If a wire breaks or a sensor loses power, the current drops to 0.0 mA, allowing the controller to instantly detect an "Open-Loop Cable Break Fault".
+- Full-Scale limit (20mA): Represented by exactly 20.0 mA, matching the maximum engineering range of the calibrated sensor.
+
+---
+
+2. SENSOR SPECS AND SIGNAL OUTPUTS
+The opsFlow equipment array contains three primary telemetry sensor classes:
+
+Sensor 2.1: Resistance Temperature Detectors (Pt100 RTDs)
+Pt100 sensors consist of a pure platinum coil that exhibits a nominal electrical resistance of exactly 100.0 Ohms at 0°C. Resistance increases linearly with temperature at a rate of +0.385 Ohms per °C.
+- Operating Range: Calibrated from -50°C to +200°C.
+- Diagnostic Values:
+  * At 0°C, resistance must read exactly 100.0 Ohms.
+  * At 100°C, resistance must read exactly 138.5 Ohms.
+  * Open Circuit: Resistance reads infinite (> 1,000,000 Ohms), indicating a broken sensor wire.
+  * Short Circuit: Resistance reads near 0 Ohms, indicating a crushed cable housing.
+
+Sensor 2.2: Pressure Transducers (Model: Trans-Press-10)
+A strain-gauge based pressure transducer that measures hydraulic pressure from 0 bar to 200 bar, outputting a linear 4-20mA signal.
+- Scaling:
+  * 0 bar = exactly 4.0 mA output.
+  * 100 bar = exactly 12.0 mA output.
+  * 200 bar = exactly 20.0 mA output.
+
+Sensor 2.3: Thermocouples (Type K)
+Consists of two dissimilar metal wires (Chromel and Alumel) joined at one end, generating a tiny, high-temperature millivolt (mV) signal based on the temperature difference between the hot junction and cold junction (Seebeck effect).
+- Operating Range: Up to 1200°C. Highly durable but sensitive to signal noise.
+
+---
+
+3. STEP-BY-STEP CALIBRATION OF 4-20MA TRANSMITTERS
+To calibrate an analog pressure or temperature transmitter, technicians must perform a two-point tuning (Zero and Span adjustment) using a calibrated loop simulator (Model: Loop-Sim-V3):
+
+- [ ] Step 3.1: Connect Loop Simulator and DMM
+1. Perform LOTO on the cabinet control breaker.
+2. Disconnect the sensor signal wires from the analog input card on the PLC.
+3. Connect the loop simulator in series with a digital multimeter (DMM) set to measure DC current (mA).
+
+- [ ] Step 3.2: Perform Zero Calibration (4.0 mA Setting)
+1. Apply the baseline physical input (e.g., 0.0 bar pressure using a hydraulic hand pump, or place the Pt100 probe in an ice bath at exactly 0.0°C).
+2. Read the current output on the multimeter.
+3. If the meter does not read exactly 4.00 mA, locate the small, brass potentiometer screw labeled "ZERO" on the transmitter housing.
+4. Rotate the ZERO screw slowly using a non-conductive adjustment tool until the multimeter reads exactly 4.00 mA.
+
+- [ ] Step 3.3: Perform Span Calibration (20.0 mA Setting)
+1. Apply the full-scale physical input (e.g., pump the hand pressure calibrator to exactly 200.0 bar, or place the Pt100 probe in a dry-block calibrator heated to exactly 200.0°C).
+2. Read the current output on the multimeter.
+3. If the meter does not read exactly 20.00 mA, locate the brass potentiometer screw labeled "SPAN" on the transmitter body.
+4. Rotate the SPAN screw slowly until the multimeter reads exactly 20.00 mA.
+5. Re-check the Zero point (Step 3.2), as adjusting span can shift the zero baseline slightly. Repeat until both points read exactly 4.00 mA and 20.00 mA.
+
+---
+
+4. DIAGNOSTIC PROCEDURES FOR SIGNAL NOISE & GROUND LOOPS
+If a sensor output exhibits rapid fluctuations, sudden random spikes, or constant offset errors on the HMI (e.g., temperature reading jumps between 45°C and 72°C in milliseconds), execute these signal noise diagnostics:
+
+Diagnostic Step 4.1: Identify Ground Loop Contamination
+A ground loop occurs when a sensor cable shield or signal wire is grounded at multiple, physically separate points. Because different grounding plates in a factory can have a potential difference of several volts, current flows through the shield, inducing high-frequency AC electrical noise into the signal wires.
+- Verification:
+  1. Disconnect the cable shield wire from the local transmitter housing terminal.
+  2. Measure the AC voltage between the disconnected shield wire and the transmitter metal casing.
+  3. If the meter reads any AC voltage (> 0.5V AC), a ground loop exists.
+  4. Correction: Ensure all shielded signal cables are grounded at ONE end only—preferably at the central PLC control cabinet grounding bus bar. Isolate the sensor end shield braid using electrical heat-shrink tubing to prevent physical contact with the machine chassis.
+
+Diagnostic Step 4.2: Enforce Proper Shielding and Conduit Segregation
+- Cable Separation: Sensor signal wires carrying low-voltage 24V DC or 4-20mA signals must never be routed inside the same physical metal conduit or wire tray as high-voltage AC motor power lines (480V lines from VFDs). High-voltage lines generate intense electromagnetic fields that induce electrical noise.
+- Conduit Enclosure: If low-voltage signal cables and high-voltage power lines must cross, they must cross strictly at a 90-degree right angle to minimize electromagnetic coupling, and maintain a minimum physical clearance distance of exactly 300 mm.

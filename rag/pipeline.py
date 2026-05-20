@@ -135,10 +135,12 @@ class RAGPipeline:
         # --- 5. Confidence Verification & Fallbacks ---
         max_score = reranked_chunks[0]["cross_score"] if reranked_chunks else -99.0
         
-        # Map cross-encoder scores range approx [-6.0, 2.0] to normalized confidence [0.0, 1.0]
-        confidence = min(1.0, max(0.0, (max_score + 6.0) / 8.0))
+        # Calibrated Sigmoid confidence calculation mapping the Cross-Encoder score range
+        import math
+        confidence = 1.0 / (1.0 + math.exp(-0.7 * (max_score + 2.0))) if reranked_chunks else 0.0
         
-        if confidence < 0.15 or not reranked_chunks:
+        # Raise minimum threshold to 0.30 (approx max_score = -3.2) to ensure strict safety
+        if confidence < 0.30 or not reranked_chunks:
             answer = "I don't have enough information in my knowledge base to answer this question."
             faith_res = {
                 "faithful": True,

@@ -1,0 +1,62 @@
+================================================================================
+                    ROTATING MACHINERY VIBRATION & BEARING ANALYSIS
+                OPERATIONAL INSPECTION & REPLACEMENT PROCEDURE
+================================================================================
+
+1. INTRODUCTION TO VIBRATION MONITORING
+Rotating machinery (electric motors, gearboxes, and spindle assemblies) utilizes high-precision rolling-element bearings to support shaft loads. To detect mechanical degradation before it results in catastrophic failure, opsFlow employs continuous vibration monitoring.
+- Standard Vibration Sensor: A high-frequency piezoelectric acceleration sensor (Model: Viber-100) mounted directly to the bearing casing.
+- Telemetry Output: Outputs an analog 4-20mA signal proportional to overall vibration velocity (expressed in RMS mm/s) or a raw voltage signal fed to a local spectrum analyzer.
+
+---
+
+2. BEARING FAILURES AND VIBRATION PEAKS: ROOT CAUSES
+Bearings fail primarily due to mechanical fatigue, inadequate lubrication, metal contamination, or shaft misalignment. Technicians must monitor vibration spectrums to identify these specific defect frequencies:
+
+Defect 2.1: Outer Race Defects (BPFO)
+When the rolling elements pass over a microscopic pit or crack on the outer ring casing, it generates a periodic mechanical impact.
+- Frequency Peak: BPFO (Ball Pass Frequency Outer Race) peak appears in the spectrum. For our standard cylindrical roller bearing (SKF-NU208), the BPFO occurs at exactly 3.58 × Shaft Rotational Frequency (1X).
+- Symptom: A sharp, distinct peak in the vibration acceleration spectrum at the calculated BPFO harmonic, accompanied by a modest rise in overall casing temperature.
+
+Defect 2.2: Inner Race Defects (BPFI)
+If the damage is located on the rotating inner ring of the bearing, the impact frequency is modulated by the shaft rotation speed.
+- Frequency Peak: BPFI (Ball Pass Frequency Inner Race) peak appears at exactly 4.92 × Shaft Rotational Frequency (1X), with sidebands spaced at +/- 1X shaft speed.
+- Symptom: The HMI displays a "High Bearing Vibration Alert" with fluctuating vibration levels, as the defect enters and leaves the load zone during every shaft rotation.
+
+Defect 2.3: Shaft Misalignment and Coupling Imbalance
+- Coupling Imbalance: Generates a high-amplitude vibration peak at exactly 1X Shaft Rotational Speed, appearing strictly in the radial direction.
+- Shaft Misalignment: Generates high-amplitude vibration peaks at exactly 2X Shaft Rotational Speed, appearing dominant in the axial direction. If axial vibration exceeds 4.5 mm/s RMS, the coupling must be re-aligned using a laser alignment tool to prevent rapid bearing destruction.
+
+---
+
+3. INSTALLATION AND CALIBRATION OF VIBRATION SENSORS
+To ensure accurate vibration measurements, the Viber-100 acceleration sensor must be installed according to strict guidelines:
+
+Installation Rule 3.1: Mount Directly to the Load Zone
+- Radial Mount: The sensor must be physically mounted directly on the solid bearing housing, aligned radially with the active load zone of the shaft. Avoid mounting on thin sheet-metal protection covers or hollow bracket frames, which damp high-frequency vibration signals and introduce false resonance peaks.
+- Mechanical Interface: Use a threaded steel mounting stud (M6 thread) tightened to a torque of 8 Nm. If a permanent threaded stud is not feasible, use a high-strength magnetic mounting base, ensuring the contact surface is flat, clean, and coated with a thin layer of silicone grease to eliminate high-frequency air gap damping.
+
+Installation Rule 3.2: Cable Routing and Signal Shielding
+- Shielded Cable: Use a twisted-pair shielded cable (Type: Shield-ST-02) to connect the sensor to the local telemetry transmitter. The shield braid must be grounded at the controller cabinet end only, preventing ground loops that contaminate the vibration signal with 50 Hz/60 Hz electrical noise.
+- Strain Relief: Secure the cable with physical conduit clips, leaving a small loop of slack near the sensor to allow for thermal expansion and prevent high-frequency cable-strain dampening.
+
+---
+
+4. STEP-BY-STEP BEARING REPLACEMENT CHECKLIST
+When a bearing is diagnosed with an inner or outer race defect (overall vibration velocity exceeding 7.1 mm/s RMS, Class III severity), technicians must execute the following step-by-step replacement checklist:
+
+- [ ] 4.1: Perform LOTO-E-401. Fully de-energize the drive motor. Set a secure safety perimeter around the motor bay.
+- [ ] 4.2: Decouple the motor shaft from the driven gearbox. Mark the original coupling alignment locations using a steel scribe tool.
+- [ ] 4.3: Extract the motor housing mount bolts. Transfer the motor to a clean assembly table.
+- [ ] 4.4: Remove the rear fan shroud and the front bearing end-bell housing.
+- [ ] 4.5: Mount a heavy-duty three-jaw hydraulic puller (Model: Puller-H30) to the shaft. Center the hydraulic plunger on the shaft tip, apply steady hydraulic pressure to draw the old bearing assembly off the shaft. Never use a hammer or torch directly on the shaft, as this causes permanent shaft bending and imbalance.
+- [ ] 4.6: Clean the shaft bearing seat using a fine emery cloth and high-purity solvent. Using a calibrated micrometer, measure the shaft seat diameter at 3 points. Verify it matches the standard tolerance fit of exactly 40.012 mm (allowable range: 40.010 mm to 40.018 mm).
+- [ ] 4.7: Prepare the new bearing (SKF-NU208).
+- [ ] 4.8: Heat the new bearing inner ring using an induction heater (Model: Induct-H10) to exactly 110°C. Heating the inner ring expands the steel, allowing it to slide effortlessly onto the shaft. Never heat a bearing above 120°C, as this alters the crystalline structure of the steel, destroying its hardness. Never use an open flame torch.
+- [ ] 4.9: Wear high-temperature leather safety gloves. Slide the heated bearing quickly and smoothly onto the shaft seat until it is seated firmly against the shaft shoulder.
+- [ ] 4.10: Hold the bearing in place for 30 seconds as it cools and shrinks to form a solid interference fit on the shaft.
+- [ ] 4.11: Fill the bearing chamber to exactly 33% (one-third) of its free volume with high-speed synthetic polyurea grease (Grease Specs: Mobilith SHC 100). Over-packing a bearing with grease causes fluid churning, leading to rapid heat build-up and premature bearing failure.
+- [ ] 4.12: Reassemble the end-bell housing and mount bolts, tightening to 35 Nm. Re-mount the motor to the base frame.
+- [ ] 4.13: Perform laser shaft alignment. Adjust base shims until coupling angular misalignment is below 0.03 mm and offset misalignment is below 0.05 mm.
+- [ ] 4.14: Re-couple the shaft. Remove LOTO locks. Start the motor and perform a 10-minute test run.
+- [ ] 4.15: Verify that the overall vibration velocity at 1500 RPM remains below the healthy limit of 1.8 mm/s RMS.
