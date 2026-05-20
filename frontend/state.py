@@ -7,7 +7,6 @@ from services.rag_service import rag_service
 from services.ml_service import ml_service
 from retrieval.cache import query_cache
 from core.config import settings
-from models.pipeline import run_ml_pipeline
 
 def query_rag(query_text: str, custom_api_key: str = None) -> dict | None:
     """Directly invokes the RAG pipeline to answer user questions."""
@@ -59,6 +58,9 @@ def get_model_status() -> dict | None:
 def trigger_retraining() -> dict | None:
     """Asynchronously triggers the ML hyperparameter tuning and model retraining pipeline."""
     try:
+        # Lazy import to prevent training logic/kagglehub imports at Streamlit startup
+        from models.pipeline import run_ml_pipeline
+        
         # Prevent UI freezing by spinning up retraining in a background thread
         bg_thread = threading.Thread(target=run_ml_pipeline, daemon=True)
         bg_thread.start()

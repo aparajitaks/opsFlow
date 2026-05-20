@@ -1,8 +1,13 @@
 import os
 import pandas as pd
 import numpy as np
-import kagglehub
-from kagglehub import KaggleDatasetAdapter
+try:
+    import kagglehub
+    from kagglehub import KaggleDatasetAdapter
+except ImportError:
+    kagglehub = None
+    KaggleDatasetAdapter = None
+
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
@@ -19,6 +24,12 @@ def load_dataset() -> pd.DataFrame:
     if local_path.exists():
         print(f"Loading local dataset from: {local_path} ...")
         return pd.read_csv(local_path)
+        
+    if kagglehub is None:
+        raise ImportError(
+            "Local CSV dataset is not found and 'kagglehub' is not available to download it. "
+            "Please ensure the dataset file exists locally at data/ai4i2020.csv"
+        )
         
     print("Local CSV not found. Loading dataset via KaggleHub...")
     df = kagglehub.dataset_load(
