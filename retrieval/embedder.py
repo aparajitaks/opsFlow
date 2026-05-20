@@ -5,7 +5,7 @@ def get_embedder(model_name: str = "all-MiniLM-L6-v2") -> SentenceTransformer:
     """
     Instantiates and returns the SentenceTransformer model.
     """
-    return SentenceTransformer(model_name)
+    return SentenceTransformer(model_name, device="cpu")
 
 def embed_texts(embedder: SentenceTransformer, texts: list[str]) -> np.ndarray:
     """
