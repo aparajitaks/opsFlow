@@ -1,7 +1,7 @@
 import pytest
 import html
 import time
-from core.security import sanitize_input, check_prompt_injection, TokenBucketRateLimiter
+from rag.generator import sanitize_input, check_prompt_injection, TokenBucketRateLimiter
 
 def test_input_sanitization():
     """Asserts that HTML tags, script snippets, and control characters are escaped."""

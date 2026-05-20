@@ -1,73 +1,97 @@
 import os
 import pytest
 import pandas as pd
-from unittest.mock import patch
-from models.preprocessing import load_dataset, engineer_features, prepare_data_pipeline, apply_scaling, apply_smote
-from models.training import perform_cross_validation, tune_logistic_regression, tune_random_forest
-from core.constants import CONTINUOUS_COLS
+from unittest.mock import patch, MagicMock
 
-def test_preprocessing_flow(mock_csv_data):
-    """Verifies document loader, custom feature engineering, and stratified splits."""
+from models.train import (
+    load_dataset,
+    engineer_features,
+    prepare_data_pipeline,
+    perform_cross_validation,
+    tune_models
+)
+from models.predict import TelemetryPredictor
+
+def test_preprocessing_and_features(mock_csv_data):
+    """Verifies loader and custom feature engineering logic."""
     with patch("core.config.settings.DATASET_PATH", mock_csv_data):
-        # 1. Load Data
         df = load_dataset()
         assert len(df) == 10
         assert "Machine failure" in df.columns
         
-        # 2. Engineer Features
+        # Test feature engineering
         df_eng = engineer_features(df)
         assert "temp_diff" in df_eng.columns
         assert "power" in df_eng.columns
         assert "wear_torque_ratio" in df_eng.columns
+        # Air = 300.0, Process = 310.5 -> temp_diff = 10.5
         assert df_eng["temp_diff"].iloc[0] == pytest.approx(10.5)
+
+def test_pipeline_splits(mock_csv_data):
+    """Checks train_test_split and leakage prevention columns removal."""
+    with patch("core.config.settings.DATASET_PATH", mock_csv_data):
+        df = load_dataset()
+        df_eng = engineer_features(df)
         
-        # 3. Train Test Split (Using default 80/20 split)
         X_train, X_test, y_train, y_test = prepare_data_pipeline(df_eng)
         assert len(X_train) == 8
         assert len(X_test) == 2
-        assert len(y_train) == 8
-        assert len(y_test) == 2
+        assert "Machine failure" not in X_train.columns
+        assert "TWF" not in X_train.columns
+        assert "HDF" not in X_train.columns
 
-def test_scaling_and_smote(mock_csv_data):
-    """Checks feature scaling transformations and SMOTE oversampling ratios."""
+def test_cross_validation_and_tuning(mock_csv_data):
+    """Verifies baseline CV runs and grid searches on mock data splits."""
     with patch("core.config.settings.DATASET_PATH", mock_csv_data):
         df = load_dataset()
         df_eng = engineer_features(df)
         X_train, X_test, y_train, y_test = prepare_data_pipeline(df_eng)
         
-        # Scale
-        X_train_scaled, X_test_scaled, scaler = apply_scaling(X_train, X_test, CONTINUOUS_COLS)
-        assert X_train_scaled.shape == X_train.shape
-        assert X_test_scaled.shape == X_test.shape
-        
-        # SMOTE (Since sample count is tiny, we check if it handles it or handles exception gracefully)
-        try:
-            X_res, y_res = apply_smote(X_train, y_train)
-            assert len(y_res) >= len(y_train)
-        except ValueError:
-            # SMOTE requires min samples per class, which might fail on tiny mock datasets.
-            # This is expected and acceptable behavior.
-            pass
+        # Mock cross validation splitting and GridSearch limits to match tiny mock sample sizes
+        with patch("models.train.N_SPLITS", 2):
+            lr_cv, rf_cv = perform_cross_validation(X_train, y_train)
+            assert "f1" in lr_cv
+            assert "roc_auc" in rf_cv
+            
+            # Check Grid Search tuning on mock splits
+            scaler_mock = MagicMock()
+            X_train_lr_mock = X_train.copy()
+            
+            best_lr, best_lr_params, _, best_rf, best_rf_params, _ = tune_models(
+                X_train, y_train, X_train_lr_mock
+            )
+            
+            assert best_lr is not None
+            assert best_rf is not None
 
-def test_model_training_helpers(mock_csv_data):
-    """Checks baseline cross-validation scoring and parameter tuning grids."""
-    with patch("core.config.settings.DATASET_PATH", mock_csv_data):
-        df = load_dataset()
-        df_eng = engineer_features(df)
-        X_train, X_test, y_train, y_test = prepare_data_pipeline(df_eng)
+def test_telemetry_predictor(mock_csv_data):
+    """Validates the in-process TelemetryPredictor classifies telemetry inputs correctly."""
+    # Mock model files existence and return predictions
+    with patch("os.path.exists", return_value=True), \
+         patch("joblib.load") as mock_load:
         
-        # Test cross validation helper (mocking CV split to avoid n_splits > n_samples warnings)
-        with patch("models.training.N_SPLITS", 2):
-            cv_results_lr, cv_results_rf = perform_cross_validation(X_train, y_train, CONTINUOUS_COLS)
-            assert "f1" in cv_results_lr
-            assert "f1" in cv_results_rf
-            
-            # Check Grid Search Tuning
-            X_train_scaled, _, _ = apply_scaling(X_train, X_test, CONTINUOUS_COLS)
-            lr_model, lr_params, lr_score = tune_logistic_regression(X_train_scaled, y_train)
-            assert lr_model is not None
-            assert lr_params is not None
-            
-            rf_model, rf_params, rf_score = tune_random_forest(X_train, y_train)
-            assert rf_model is not None
-            assert rf_params is not None
+        # Mock scaler, rf, lr models
+        mock_scaler = MagicMock()
+        mock_rf = MagicMock()
+        mock_rf.predict.return_value = [1]
+        mock_rf.predict_proba.return_value = [[0.1, 0.9]]
+        
+        mock_lr = MagicMock()
+        
+        mock_load.side_effect = [mock_scaler, mock_rf, mock_lr]
+        
+        predictor = TelemetryPredictor()
+        
+        test_input = {
+            "Type": "L",
+            "Air temperature [K]": 300.0,
+            "Process temperature [K]": 310.5,
+            "Rotational speed [rpm]": 1500.0,
+            "Torque [Nm]": 40.0,
+            "Tool wear [min]": 50.0
+        }
+        
+        res = predictor.predict(test_input)
+        assert res["prediction"] == 1
+        assert res["probability"] == 0.9000
+        assert res["status"] == "FAILURE DETECTED"

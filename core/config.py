@@ -29,7 +29,7 @@ class Settings:
         self.DOCS_DIR = BASE_DIR / "docs"
         self.LOGS_DIR = BASE_DIR / "logs"
         self.MODEL_ARTIFACTS_DIR = BASE_DIR / "models" / "artifacts"
-        self.DATABASE_DIR = self.DATA_DIR / "chroma_db"
+        self.DATABASE_DIR = BASE_DIR / "rag" / "vector_store"
         
         # Ensure directories exist
         self.DATA_DIR.mkdir(parents=True, exist_ok=True)

@@ -2,12 +2,9 @@ import os
 import json
 import re
 import numpy as np
-from core.config import settings
 
 def split_into_sentences(text: str) -> list[str]:
-    """
-    Splits text into sentences using regex boundary detection.
-    """
+    """Splits text into sentences using regex boundary detection."""
     sentence_end = re.compile(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s')
     sentences = sentence_end.split(text)
     return [s.strip() for s in sentences if s.strip()]
@@ -71,7 +68,7 @@ def semantic_chunk_text(text: str, embedder, similarity_threshold: float = 0.6, 
 
 def chunk_documents(docs_dir: str, embedder=None, chunk_size: int = 300, overlap: int = 50, use_semantic: bool = False) -> list[dict]:
     """
-    Step 1: Performs chunking across all text/JSON documents in docs_dir.
+    Performs chunking across all text/JSON documents in docs_dir.
     Supports either overlap chunking or advanced semantic chunking.
     Returns a list of dictionaries with text and metadata.
     """
@@ -88,6 +85,8 @@ def chunk_documents(docs_dir: str, embedder=None, chunk_size: int = 300, overlap
             try:
                 with open(file_path, 'r', encoding='utf-8') as jf:
                     data = json.load(jf)
+                
+                # Make dynamic summary text from task JSON metrics
                 text = (
                     f"Machine Learning Model Summary and Training Results:\n"
                     f"Training Timestamp: {data.get('run_timestamp')}\n"
@@ -98,7 +97,7 @@ def chunk_documents(docs_dir: str, embedder=None, chunk_size: int = 300, overlap
                     f"Top Features for Failure Prediction: The top 3 most important features for predicting equipment failure are {', '.join(data.get('top_features', []))}.\n"
                     f"Dataset Failure Rate: The failure rate in the predictive maintenance dataset is {data.get('failure_rate_in_dataset') * 100:.1f}% (or {data.get('failure_rate_in_dataset')}).\n"
                 )
-            except Exception as e:
+            except Exception:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     text = f.read()
         else:

@@ -1,0 +1,29 @@
+{
+  "evaluation_timestamp": "2026-05-20T14:44:17.402932",
+  "logistic_regression": {
+    "recall": 0.8676,
+    "precision": 0.1799,
+    "f1_score": 0.298,
+    "roc_auc": 0.9367,
+    "avg_precision": 0.4455
+  },
+  "random_forest_balanced": {
+    "recall": 0.6912,
+    "precision": 0.9592,
+    "f1_score": 0.8034,
+    "roc_auc": 0.9608,
+    "avg_precision": 0.8512
+  },
+  "random_forest_smote": {
+    "recall": 0.7647,
+    "precision": 0.4771,
+    "f1_score": 0.5876,
+    "roc_auc": 0.9605,
+    "avg_precision": 0.6668
+  },
+  "recall_comparison": {
+    "balanced_strategy_recall": 0.6912,
+    "smote_strategy_recall": 0.7647,
+    "delta_recall": 0.0735
+  }
+}

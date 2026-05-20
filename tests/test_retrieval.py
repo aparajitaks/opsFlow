@@ -2,11 +2,15 @@ import pytest
 import numpy as np
 from unittest.mock import MagicMock
 
-from retrieval.chunker import split_into_sentences, semantic_chunk_text
-from retrieval.bm25 import build_bm25_index, bm25_search
-from retrieval.hybrid import hybrid_retrieve
-from retrieval.reranker import rerank
-from retrieval.cache import QueryCache
+from rag import (
+    split_into_sentences,
+    semantic_chunk_text,
+    build_bm25_index,
+    bm25_search,
+    hybrid_retrieve,
+    rerank,
+    QueryCache
+)
 
 def test_sentence_split():
     """Asserts that text is correctly split into sentences on punctuation bounds."""

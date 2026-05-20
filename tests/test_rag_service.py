@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from services.rag_service import is_valid_groq_key, get_groq_client
+from rag import is_valid_groq_key, get_groq_client
 
 def test_is_valid_groq_key():
     assert not is_valid_groq_key(None)
@@ -11,9 +11,9 @@ def test_is_valid_groq_key():
     assert not is_valid_groq_key("undefined")
     assert is_valid_groq_key("gsk_some_valid_looking_key_12345")
 
-@patch("services.rag_service.Groq")
+@patch("rag.generator.Groq")
 def test_get_groq_client_caching(mock_groq):
-    # Clear streamlit cache resource for this function to avoid test side-effects
+    # Clear cache singleton to avoid side-effects between runs
     get_groq_client.clear()
     
     # 1. Test invalid keys return None

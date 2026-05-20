@@ -160,5 +160,6 @@ logs/
 models/artifacts/logistic_regression.pkl
 models/artifacts/random_forest.pkl
 models/artifacts/scaler.pkl
+models/artifacts/data_splits.pkl
 models/artifacts/plots/
 
