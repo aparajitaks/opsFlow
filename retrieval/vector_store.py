@@ -1,6 +1,11 @@
 import os
 import chromadb
+import streamlit as st
 from core.config import settings
+
+@st.cache_resource
+def get_chroma_client(persist_dir: str):
+    return chromadb.PersistentClient(path=persist_dir)
 
 def build_or_load_store(chunks: list[dict], embedder, persist_dir: str = None) -> chromadb.Collection:
     """
@@ -11,8 +16,8 @@ def build_or_load_store(chunks: list[dict], embedder, persist_dir: str = None) -
         persist_dir = str(settings.DATABASE_DIR)
     os.makedirs(persist_dir, exist_ok=True)
     
-    # Initialize persistent client
-    client = chromadb.PersistentClient(path=persist_dir)
+    # Initialize persistent client using cached helper
+    client = get_chroma_client(persist_dir)
     collection_name = "maintenance_kb"
     
     loaded_from_disk = False

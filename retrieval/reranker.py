@@ -1,5 +1,7 @@
+import streamlit as st
 from sentence_transformers import CrossEncoder
 
+@st.cache_resource
 def get_rerank_model() -> CrossEncoder:
     """
     Loads cross-encoder model ms-marco-MiniLM-L-6-v2 once at startup.

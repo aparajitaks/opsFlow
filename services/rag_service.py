@@ -1,5 +1,6 @@
 import os
 import time
+import streamlit as st
 from groq import Groq
 from core.config import settings
 from core.security import sanitize_input, check_prompt_injection
@@ -12,6 +13,28 @@ from retrieval.reranker import get_rerank_model, rerank
 from retrieval.cache import query_cache
 from evaluation.faithfulness import check_faithfulness
 from utils.logger import log_query
+
+@st.cache_resource
+def get_groq_client(api_key: str):
+    """
+    Creates and caches the Groq client instance in memory.
+    """
+    if not api_key or not isinstance(api_key, str) or not api_key.strip() or api_key.strip().lower() in ("none", "undefined", "null", ""):
+        return None
+    try:
+        return Groq(api_key=api_key.strip())
+    except Exception as e:
+        print(f"[RAGService] Failed to initialize Groq client: {e}")
+        return None
+
+def is_valid_groq_key(api_key: str) -> bool:
+    """
+    Validates if the given key is a non-empty, non-trivial string.
+    """
+    if not api_key or not isinstance(api_key, str):
+        return False
+    k = api_key.strip()
+    return len(k) > 0 and k.lower() not in ("none", "undefined", "null", "")
 
 class RAGService:
     """
@@ -152,20 +175,20 @@ class RAGService:
 
         # --- Grounded Generation ---
         active_api_key = groq_api_key or settings.GROQ_API_KEY
-        if active_api_key:
-            groq_client = Groq(api_key=active_api_key)
-            answer = self._generate_llm_completion(sanitized_query, reranked_chunks, groq_client)
-        else:
-            # Fallback mock generated answers for sandboxed testing
-            if "water" in sanitized_query.lower() or "boiling" in sanitized_query.lower():
-                answer = "The boiling point of water is exactly 100 degrees Celsius (212 degrees Fahrenheit) at standard atmospheric pressure."
+        if is_valid_groq_key(active_api_key):
+            try:
+                groq_client = get_groq_client(active_api_key)
+            except Exception as e:
+                groq_client = None
+                print(f"[RAGService] Error fetching cached Groq client: {e}")
+            
+            if groq_client:
+                answer = self._generate_llm_completion(sanitized_query, reranked_chunks, groq_client)
             else:
-                answer = (
-                    "[MOCK RESPONDER - NO GROQ API KEY]\n"
-                    "Grounded Reference Chunks:\n"
-                    + "\n".join([f" • [{c['doc_name']} Chunk {c['chunk_index']}] - {c['text'][:80]}..." for c in reranked_chunks])
-                )
+                answer = self._get_mock_answer(sanitized_query, reranked_chunks)
+        else:
             groq_client = None
+            answer = self._get_mock_answer(sanitized_query, reranked_chunks)
 
         # --- Faithfulness Claim Audit ---
         faith_res = check_faithfulness(answer, reranked_chunks, groq_client)
@@ -190,6 +213,18 @@ class RAGService:
         }
         query_cache.set(sanitized_query, result, self._embedder)
         return result
+
+    def _get_mock_answer(self, query: str, retrieved_chunks: list[dict]) -> str:
+        """
+        Fallback mock generated answers for sandboxed testing.
+        """
+        if "water" in query.lower() or "boiling" in query.lower():
+            return "The boiling point of water is exactly 100 degrees Celsius (212 degrees Fahrenheit) at standard atmospheric pressure."
+        return (
+            "[MOCK RESPONDER - NO GROQ API KEY]\n"
+            "Grounded Reference Chunks:\n"
+            + "\n".join([f" • [{c['doc_name']} Chunk {c['chunk_index']}] - {c['text'][:80]}..." for c in retrieved_chunks])
+        )
 
     def _generate_llm_completion(self, query: str, retrieved_chunks: list[dict], client: Groq) -> str:
         """

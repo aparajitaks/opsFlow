@@ -1,18 +1,13 @@
+import streamlit as st
 from sentence_transformers import SentenceTransformer
 import numpy as np
 
-_model = None
-
+@st.cache_resource
 def get_embedder(model_name: str = "all-MiniLM-L6-v2") -> SentenceTransformer:
-    global _model
-
-    if _model is None:
-        _model = SentenceTransformer(
-            model_name,
-            device="cpu"
-        )
-
-    return _model
+    return SentenceTransformer(
+        model_name,
+        device="cpu"
+    )
 
 def embed_texts(embedder: SentenceTransformer, texts: list[str]) -> np.ndarray:
     """
