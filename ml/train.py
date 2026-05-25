@@ -1,16 +1,15 @@
 """
-models/train.py — Task 3: Equipment Failure Prediction
-=======================================================
-V3 Production Upgrade:
-  • sklearn Pipeline + ColumnTransformer (preprocessing integrated, leak-proof)
-  • Config-driven hyperparameters from config.yaml
-  • Python logging module (no print() calls)
-  • MLflow experiment tracking
-  • --model CLI argument for targeted training
-  • Full pipeline artifacts persisted as single .pkl for inference
+ml/train.py — Task 3: Equipment Failure Prediction
+
+Training pipeline:
+  1. Load and validate the AI4I dataset
+  2. Engineer derived features (temp_diff, power, wear_torque_ratio)
+  3. Stratified 80/20 train/test split
+  4. Stratified K-fold CV baselines for LR and RF
+  5. GridSearchCV tuning (preprocessing inside Pipeline — leak-safe)
+  6. Persist best pipeline artifacts + model summary JSON
 """
 import os
-import sys
 import json
 import shutil
 import datetime
@@ -21,20 +20,20 @@ import joblib
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV
+from sklearn.model_selection import StratifiedKFold, GridSearchCV
 from sklearn.metrics import f1_score, roc_auc_score, precision_score, recall_score
 from imblearn.over_sampling import SMOTE
 
 from core.config import settings
 from core.logger import get_logger
-from models.artifacts import ModelArtifactStore
-from models.data import load_dataset
-from models.features import engineer_features, prepare_data_pipeline
-from models.pipeline_builder import build_pipeline
+from ml.artifacts import ModelArtifactStore
+from ml.data import load_dataset
+from ml.features import engineer_features, prepare_data_pipeline
+from ml.pipeline_builder import build_pipeline
 
-log = get_logger("models.train")
+log = get_logger("ml.train")
 
-# Re-export for backward compatibility (tests, external imports)
+# Re-exported for test imports
 __all__ = [
     "load_dataset",
     "engineer_features",
@@ -158,47 +157,7 @@ def tune_pipeline(X_train: pd.DataFrame, y_train: pd.Series, model_name: str = "
     return results
 
 
-# ---------------------------------------------------------------------------
-# STEP 7 — MLflow logging helper
-# ---------------------------------------------------------------------------
 
-def _log_to_mlflow(model_name: str, params: dict, cv_score: float,
-                   lr_cv: dict, rf_cv: dict, artifacts_dir):
-    """Logs a training run to MLflow if enabled in config."""
-    if not settings.MLFLOW_ENABLED:
-        return
-    try:
-        import mlflow
-        mlflow.set_tracking_uri(settings.MLFLOW_TRACKING_URI)
-        mlflow.set_experiment(settings.MLFLOW_EXPERIMENT_NAME)
-
-        run_name = f"{settings.MLFLOW_RUN_NAME_PREFIX}_{model_name}_{datetime.datetime.now().strftime('%H%M%S')}"
-        with mlflow.start_run(run_name=run_name):
-            # Log hyperparameters
-            clean_params = {k.replace("classifier__", ""): v for k, v in params.items()
-                            if isinstance(v, (str, int, float, bool)) or v is None}
-            mlflow.log_params(clean_params)
-            mlflow.log_param("random_state", settings.RANDOM_STATE)
-            mlflow.log_param("test_size", settings.TEST_SIZE)
-            mlflow.log_param("n_cv_splits", settings.N_CV_SPLITS)
-
-            # Log CV metrics
-            mlflow.log_metric("cv_f1_mean", cv_score)
-            if lr_cv:
-                mlflow.log_metric("lr_cv_f1",     float(np.mean(lr_cv["f1"])))
-                mlflow.log_metric("lr_cv_roc_auc", float(np.mean(lr_cv["roc_auc"])))
-            if rf_cv:
-                mlflow.log_metric("rf_cv_f1",     float(np.mean(rf_cv["f1"])))
-                mlflow.log_metric("rf_cv_roc_auc", float(np.mean(rf_cv["roc_auc"])))
-
-            # Log model artifact
-            model_file = artifacts_dir / f"{model_name.replace(' ', '_').lower()}_pipeline.pkl"
-            if model_file.exists():
-                mlflow.log_artifact(str(model_file))
-
-            log.info(f"MLflow run '{run_name}' logged under experiment '{settings.MLFLOW_EXPERIMENT_NAME}'")
-    except Exception as e:
-        log.warning(f"MLflow logging failed (non-fatal): {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -207,17 +166,16 @@ def _log_to_mlflow(model_name: str, params: dict, cv_score: float,
 
 def run_train(model_name: str = "both"):
     """
-    Complete V3 training pipeline:
+    Full training pipeline for Task 3:
       1. Load & engineer features
-      2. Split (stratified)
-      3. 5-fold CV baselines
-      4. GridSearchCV pipeline tuning (ColumnTransformer + Classifier)
-      5. Persist full pipeline artifacts (no separate scaler needed)
+      2. Stratified 80/20 split
+      3. 5-fold stratified CV baselines
+      4. GridSearchCV tuning (preprocessing inside Pipeline — no data leakage)
+      5. Persist pipeline artifacts + model_summary.json
       6. Sync model_summary.json to RAG docs corpus
-      7. MLflow experiment tracking
     """
     log.info("=" * 52)
-    log.info("  TASK 3 — PREDICTIVE ML PIPELINE: TRAINING (V3)  ")
+    log.info("  TASK 3 — PREDICTIVE ML PIPELINE: TRAINING       ")
     log.info("=" * 52)
 
     # 1. Load
@@ -274,15 +232,6 @@ def run_train(model_name: str = "both"):
             best_cv_score = lr_result["best_score"]
             best_model_name = "Logistic Regression"
 
-    # Legacy scaler.pkl — create a dummy so predict.py doesn't crash on older artifact loads
-    # In V3, scaling is embedded inside the Pipeline — no standalone scaler needed
-    dummy_scaler_path = artifacts_dir / "scaler.pkl"
-    if not dummy_scaler_path.exists():
-        from sklearn.preprocessing import StandardScaler
-        dummy = StandardScaler()
-        dummy.fit([[0]*len(settings.CONTINUOUS_COLS)])
-        joblib.dump(dummy, dummy_scaler_path)
-
     # Cache splits for evaluate.py
     joblib.dump((X_train, X_test, y_train, y_test),
                 artifacts_dir / "data_splits.pkl")
@@ -305,8 +254,6 @@ def run_train(model_name: str = "both"):
         "best_params": best_params_serializable,
         "top_features": top_features,
         "failure_rate_in_dataset": round(failure_rate, 4),
-        "sklearn_pipeline": True,
-        "v3_upgrade": True
     }
     summary_path = artifacts_dir / "model_summary.json"
     with open(summary_path, "w", encoding="utf-8") as sf:
@@ -318,18 +265,7 @@ def run_train(model_name: str = "both"):
     shutil.copy(summary_path, docs_dir / "model_summary.json")
     log.info(f"Model summary synced to RAG corpus: {docs_dir / 'model_summary.json'}")
 
-    # 7. MLflow logging
-    for name, result in tuned.items():
-        _log_to_mlflow(
-            model_name=name,
-            params=result["best_params"],
-            cv_score=result["best_score"],
-            lr_cv=lr_cv if name == "logistic_regression" else None,
-            rf_cv=rf_cv if name == "random_forest" else None,
-            artifacts_dir=artifacts_dir
-        )
-
-    log.info("Training pipeline completed successfully. ✓")
+    log.info("Training pipeline completed. ✓")
     return summary
 
 

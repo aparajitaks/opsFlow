@@ -1,5 +1,5 @@
 """
-models/predict.py — Task 3: In-process Telemetry Predictor
+ml/predict.py — Task 3: In-process Telemetry Predictor
 """
 import argparse
 import json
@@ -10,10 +10,10 @@ from core.config import settings
 from core.exceptions import ModelArtifactError
 from core.logger import get_logger
 from core.types import PredictionResult
-from models.artifacts import ModelArtifactStore
-from models.features import engineer_telemetry_row
+from ml.artifacts import ModelArtifactStore
+from ml.features import engineer_telemetry_row
 
-log = get_logger("models.predict")
+log = get_logger("ml.predict")
 
 
 class TelemetryPredictor:

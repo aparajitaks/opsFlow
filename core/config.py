@@ -51,7 +51,7 @@ class Settings:
         self.DATA_DIR             = BASE_DIR / "data"
         self.DOCS_DIR             = BASE_DIR / "docs"
         self.LOGS_DIR             = BASE_DIR / "logs"
-        self.MODEL_ARTIFACTS_DIR  = BASE_DIR / "models" / "artifacts"
+        self.MODEL_ARTIFACTS_DIR  = BASE_DIR / "ml" / "artifacts"
         self.DATABASE_DIR         = BASE_DIR / "rag" / "vector_store"
 
         for d in (self.DATA_DIR, self.DOCS_DIR, self.LOGS_DIR, self.MODEL_ARTIFACTS_DIR):
@@ -67,8 +67,8 @@ class Settings:
         self.KB_REFUSAL_MESSAGE = "I could not find this in the knowledge base."
 
         # ── Security ───────────────────────────────────────────────────────
-        self.RATE_LIMIT_PER_MINUTE = int(_deep_get(cfg, "security", "rate_limit_per_minute", default=60))
-        self.MAX_QUERY_LENGTH      = int(_deep_get(cfg, "security", "max_query_length",      default=500))
+        self.MAX_QUERY_LENGTH      = int(_deep_get(cfg, "security", "max_query_length", default=500))
+
 
         # ── ML settings (from config.yaml with env overrides) ─────────────
         ml = cfg.get("ml", {})
@@ -100,12 +100,6 @@ class Settings:
         self.OSF_TORQUE_HIGH = float(thresh.get("osf_torque_high",65))
         self.OSF_TORQUE_LOW  = float(thresh.get("osf_torque_low", 10))
 
-        # MLflow
-        mlf = ml.get("mlflow", {})
-        self.MLFLOW_ENABLED         = bool(mlf.get("enabled", False))
-        self.MLFLOW_EXPERIMENT_NAME = mlf.get("experiment_name", "opsflow_ml_v3")
-        self.MLFLOW_RUN_NAME_PREFIX = mlf.get("run_name_prefix", "train")
-        self.MLFLOW_TRACKING_URI    = f"file://{(self.LOGS_DIR / 'mlflow').resolve()}"
 
         # ── RAG settings ───────────────────────────────────────────────────
         rag = cfg.get("rag", {})

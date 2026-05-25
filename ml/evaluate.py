@@ -1,12 +1,5 @@
 """
-models/evaluate.py — Task 3: Model Evaluation (V3)
-===================================================
-V3 additions:
-  • Correlation heatmap (feature_correlation_heatmap.png)
-  • Failure distribution bar chart (failure_distribution.png)
-  • Train vs test overfitting delta table (printed + saved in JSON)
-  • Python logging module
-  • Reads pipeline artifacts (no separate scaler)
+ml/evaluate.py — Task 3: Model Evaluation
 """
 import os
 import sys
@@ -34,7 +27,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from core.config import settings
 from core.logger import get_logger
 
-log = get_logger("models.evaluate")
+log = get_logger("ml.evaluate")
 
 try:
     import shap
@@ -63,7 +56,7 @@ def _metrics(y_true, y_pred, y_prob) -> dict:
 
 def run_evaluation():
     log.info("=" * 52)
-    log.info("  TASK 3 — PREDICTIVE ML PIPELINE: EVALUATION (V3)")
+    log.info("  TASK 3 — PREDICTIVE ML PIPELINE: EVALUATION")
     log.info("=" * 52)
 
     artifacts_dir = settings.MODEL_ARTIFACTS_DIR
@@ -365,7 +358,7 @@ def run_evaluation():
     log.info("            EVALUATION RESULTS (HOLDOUT TEST SET)               ")
     log.info("=" * 70)
     print("\n" + "=" * 70)
-    print("         EVALUATION RESULTS COMPARISON — V3                        ")
+    print("         EVALUATION RESULTS COMPARISON                        ")
     print("=" * 70)
     if rf_smote_metrics is not None:
         print(f"{'Metric':<26} | {'Tuned LR':>9} | {'RF (Balanced)':>14} | {'RF (SMOTE)':>11}")

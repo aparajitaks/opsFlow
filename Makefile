@@ -24,7 +24,7 @@ test:
 	ML_N_JOBS=1 ./venv/bin/pytest -v
 
 validate:
-	./venv/bin/python -c "from models.train import load_dataset; load_dataset(); print('Dataset OK')"
+	./venv/bin/python -c "from ml.train import load_dataset; load_dataset(); print('Dataset OK')"
 
 query:
 	@test -n "$(Q)" || (echo 'Usage: make query Q="your question"' && exit 1)
@@ -32,5 +32,5 @@ query:
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	rm -rf .pytest_cache models/artifacts/data_splits.pkl models/artifacts/*.pkl
+	rm -rf .pytest_cache ml/artifacts/data_splits.pkl ml/artifacts/*.pkl
 	@echo "Cleanup done."

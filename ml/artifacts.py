@@ -11,11 +11,11 @@ from core.config import settings
 from core.exceptions import ModelArtifactError
 from core.logger import get_logger
 
-log = get_logger("models.artifacts")
+log = get_logger("ml.artifacts")
 
 MODEL_FILE_MAP = {
-    "Random Forest": ("random_forest_pipeline.pkl", "random_forest.pkl"),
-    "Logistic Regression": ("logistic_regression_pipeline.pkl", "logistic_regression.pkl"),
+    "Random Forest": "random_forest_pipeline.pkl",
+    "Logistic Regression": "logistic_regression_pipeline.pkl",
 }
 
 
@@ -40,40 +40,34 @@ class ModelArtifactStore:
         return self.load_summary().get("best_model", "Random Forest")
 
     def load_pipeline(self, model_name: str | None = None):
-        """Load V3 pipeline artifact with legacy fallback."""
+        """Load trained pipeline artifact."""
         name = model_name or self.resolve_best_model_name()
-        v3_name, legacy_name = MODEL_FILE_MAP.get(
-            name, ("random_forest_pipeline.pkl", "random_forest.pkl")
+        filename = MODEL_FILE_MAP.get(
+            name, "random_forest_pipeline.pkl"
         )
-        v3_path = self.artifacts_dir / v3_name
-        legacy_path = self.artifacts_dir / legacy_name
+        path = self.artifacts_dir / filename
 
-        if v3_path.exists():
-            log.debug(f"Loading pipeline: {v3_path}")
-            return joblib.load(v3_path)
-        if legacy_path.exists():
-            log.warning(f"Falling back to legacy artifact: {legacy_path}")
-            return joblib.load(legacy_path)
+        if path.exists():
+            log.debug(f"Loading pipeline: {path}")
+            return joblib.load(path)
         raise ModelArtifactError(
-            f"No model artifact at {v3_path} or {legacy_path}. Run training first."
+            f"No model artifact at {path}. Run training first."
         )
 
     def save_pipeline(self, pipeline, model_key: str) -> Path:
         """Persist pipeline under standard naming convention."""
         filenames = {
-            "random_forest": ("random_forest_pipeline.pkl", "random_forest.pkl"),
-            "logistic_regression": ("logistic_regression_pipeline.pkl", "logistic_regression.pkl"),
+            "random_forest": "random_forest_pipeline.pkl",
+            "logistic_regression": "logistic_regression_pipeline.pkl",
         }
-        v3_name, legacy_name = filenames[model_key]
-        v3_path = self.artifacts_dir / v3_name
-        joblib.dump(pipeline, v3_path)
-        joblib.dump(pipeline, self.artifacts_dir / legacy_name)
-        log.info(f"Pipeline saved → {v3_path}")
-        return v3_path
+        filename = filenames[model_key]
+        path = self.artifacts_dir / filename
+        joblib.dump(pipeline, path)
+        log.info(f"Pipeline saved → {path}")
+        return path
 
     def artifacts_available(self) -> bool:
         return any(
-            (self.artifacts_dir / name).exists()
-            for pair in MODEL_FILE_MAP.values()
-            for name in pair
+            (self.artifacts_dir / filename).exists()
+            for filename in MODEL_FILE_MAP.values()
         )

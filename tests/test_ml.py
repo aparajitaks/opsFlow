@@ -3,14 +3,14 @@ import pytest
 import pandas as pd
 from unittest.mock import patch, MagicMock
 
-from models.train import (
+from ml.train import (
     load_dataset,
     engineer_features,
     prepare_data_pipeline,
     perform_cross_validation,
     tune_pipeline
 )
-from models.predict import TelemetryPredictor
+from ml.predict import TelemetryPredictor
 
 def test_preprocessing_and_features(mock_csv_data):
     """Verifies loader and custom feature engineering logic."""

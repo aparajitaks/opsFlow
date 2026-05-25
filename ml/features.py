@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from core.config import settings
 from core.logger import get_logger
 
-log = get_logger("models.features")
+log = get_logger("ml.features")
 
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:

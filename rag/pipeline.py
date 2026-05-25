@@ -1,10 +1,18 @@
-import threading
-import time
+"""
+rag/pipeline.py — RAG orchestration for Task 4.
+
+Single-class orchestrator that:
+  1. Initializes embedder, ChromaDB collection, BM25 index, and cross-encoder on first use.
+  2. On each query: sanitize → cache check → hybrid retrieve → rerank → generate → audit.
+"""
+import math
 
 from core.config import settings
 from core.logger import get_logger
+from core.security import sanitize_input, check_prompt_injection
 
 log = get_logger("rag.pipeline")
+
 from rag.chunking import chunk_documents
 from rag.embeddings import get_embedder
 from rag.retriever import (
@@ -13,26 +21,25 @@ from rag.retriever import (
     hybrid_retrieve,
     get_reranker,
     rerank,
-    query_cache
+    query_cache,
 )
 from rag.generator import (
     is_valid_groq_key,
     get_groq_client,
-    sanitize_input,
-    check_prompt_injection,
     generate_llm_completion,
     get_mock_answer,
     check_faithfulness,
     log_query,
-    rate_limiter,
 )
+
 
 class RAGPipeline:
     """
-    Unified modular orchestration class for the Retrieval-Augmented Generation (RAG) pipeline.
-    Initializes heavy neural models thread-safely via singletons, handles security firewalls,
-    hybrid reciprocal-rank search, cross-encoder reranking, cached lookups, and double-pass faithfulness claim audits.
+    Orchestrates the full RAG flow for industrial maintenance Q&A.
+
+    Heavy models (embedder, cross-encoder) are loaded once and reused across queries.
     """
+
     def __init__(self):
         self._embedder = None
         self._collection = None
@@ -40,100 +47,74 @@ class RAGPipeline:
         self._chunks = None
         self._reranker = None
         self._is_initialized = False
-        self._init_lock = threading.Lock()
 
     def initialize_pipeline(self, force: bool = False, use_semantic_chunking: bool = False):
-        """Loads dense embedders, builds lexical indexes, and prepares persistent ChromaDB."""
+        """Load models and build indexes. Idempotent — safe to call multiple times."""
         if self._is_initialized and not force:
             return
 
-        with self._init_lock:
-            if self._is_initialized and not force:
-                return
+        log.info("Initializing RAG pipeline...")
+        docs_dir = str(settings.DOCS_DIR)
+        persist_dir = str(settings.DATABASE_DIR)
 
-            log.info("Starting RAG pipeline initialization...")
-            docs_dir = str(settings.DOCS_DIR)
-            persist_dir = str(settings.DATABASE_DIR)
+        self._embedder = get_embedder(settings.EMBEDDING_MODEL)
+        self._chunks = chunk_documents(
+            docs_dir,
+            self._embedder,
+            chunk_size=settings.CHUNK_SIZE,
+            overlap=settings.CHUNK_OVERLAP,
+            use_semantic=use_semantic_chunking or settings.USE_SEMANTIC,
+        )
+        log.info("Chunked %d segments from knowledge base.", len(self._chunks))
 
-            if self._embedder is None:
-                self._embedder = get_embedder(settings.EMBEDDING_MODEL)
+        self._collection = build_or_load_store(self._chunks, self._embedder, persist_dir)
+        self._bm25_index = build_bm25_index(self._chunks)
+        self._reranker = get_reranker()
 
-            self._chunks = chunk_documents(
-                docs_dir,
-                self._embedder,
-                chunk_size=settings.CHUNK_SIZE,
-                overlap=settings.CHUNK_OVERLAP,
-                use_semantic=use_semantic_chunking or settings.USE_SEMANTIC,
-            )
-            log.info("Document segmenting complete — %d chunks.", len(self._chunks))
+        self._is_initialized = True
+        log.info("RAG pipeline ready.")
 
-            self._collection = build_or_load_store(self._chunks, self._embedder, persist_dir)
-            self._bm25_index = build_bm25_index(self._chunks)
-
-            if self._reranker is None:
-                self._reranker = get_reranker()
-
-            self._is_initialized = True
-            log.info("RAG pipeline initialized successfully.")
-
-    def run_query(self, raw_query: str, groq_api_key: str = None, conversation_history: list = None) -> dict:
+    def run_query(
+        self,
+        raw_query: str,
+        groq_api_key: str = None,
+        conversation_history: list = None,
+    ) -> dict:
         """
-        Grounded hybrid-retrieval generation loop:
-        1. Sanitize input & run prompt injection regex firewalls.
-        2. Query cache lookup (exact matches and semantic cosine matching).
-        3. Reciprocal Rank Fusion hybrid retrieval (lexical BM25 and vector ChromaDB).
-        4. Cross-Encoder self-attention re-ranking (filtering top 3 chunks).
-        5. Verify retrieval confidence, triggering graceful refusal if too low.
-        6. Execute grounded completions with Groq generator.
-        7. Audit generated text factual faithfulness via Groq claims checking.
-        8. Log the interaction parameters to log file & update the cache.
+        Process one query through the full RAG pipeline.
+
+        Steps:
+          1. Sanitize + injection check
+          2. Cache lookup (exact + semantic)
+          3. Hybrid BM25 + dense retrieval with RRF
+          4. Cross-encoder reranking
+          5. Confidence check — refuse if below threshold
+          6. Grounded generation (Groq or mock)
+          7. Faithfulness audit
+          8. Log + cache result
         """
         self.initialize_pipeline()
 
-        # --- 0. Rate limiting ---
-        if not rate_limiter.is_allowed("rag_query"):
-            return {
-                "answer": "Rate limit exceeded. Please wait before submitting another query.",
-                "retrieved_chunks": [],
-                "faithfulness": {"faithful": True, "score": 1.0, "verdict": "Rate limited.", "unsupported_claims": []},
-                "confidence_score": 0.0,
-                "cached": False,
-                "blocked": True,
-            }
-        
-        # --- 1. Security Firewalls ---
-        sanitized_query = sanitize_input(raw_query)
-        if not sanitized_query:
-            return {
-                "answer": "Error: Empty query received.",
-                "retrieved_chunks": [],
-                "faithfulness": {"faithful": False, "score": 0.0, "verdict": "Empty query bypassed.", "unsupported_claims": []},
-                "confidence_score": 0.0,
-                "cached": False,
-                "blocked": True
-            }
-            
-        if check_prompt_injection(sanitized_query):
-            log.warning("Prompt injection blocked: '%s'", sanitized_query)
-            return {
-                "answer": "Security block: Your query contains elements flagged by the prompt injection firewall. Please rephrase your question using standard maintenance terms.",
-                "retrieved_chunks": [],
-                "faithfulness": {"faithful": True, "score": 1.0, "verdict": "Prompt injection blocked.", "unsupported_claims": []},
-                "confidence_score": 0.0,
-                "cached": False,
-                "blocked": True
-            }
+        # 1. Security
+        sanitized = sanitize_input(raw_query)
+        if not sanitized:
+            return _blocked("Empty query.")
 
-        # --- 2. Cache Lookup ---
-        cached_result = query_cache.get(
-            sanitized_query, self._embedder, similarity_threshold=settings.CACHE_SIM_THRESHOLD
-        )
-        if cached_result:
-            return {**cached_result, "cached": True, "blocked": False}
+        if check_prompt_injection(sanitized):
+            log.warning("Prompt injection blocked: '%s'", sanitized[:80])
+            return _blocked(
+                "Security block: query contains patterns flagged by the prompt injection check. "
+                "Please rephrase using standard maintenance terminology."
+            )
 
-        # --- 3. Hybrid RRF Retrieval ---
+        # 2. Cache
+        cached = query_cache.get(sanitized, self._embedder, similarity_threshold=settings.CACHE_SIM_THRESHOLD)
+        if cached:
+            return {**cached, "cached": True, "blocked": False}
+
+        # 3. Hybrid retrieval
         hybrid_chunks = hybrid_retrieve(
-            query=sanitized_query,
+            query=sanitized,
             embedder=self._embedder,
             collection=self._collection,
             bm25_index=self._bm25_index,
@@ -142,83 +123,81 @@ class RAGPipeline:
             rrf_k=settings.RRF_K,
         )
 
-        # --- 4. Cross-Encoder Re-Ranking ---
-        reranked_chunks = rerank(
-            query=sanitized_query,
+        # 4. Reranking
+        reranked = rerank(
+            query=sanitized,
             chunks=hybrid_chunks,
             model=self._reranker,
-            top_n=settings.TOP_N_RERANK
+            top_n=settings.TOP_N_RERANK,
         )
 
-        # --- 5. Confidence Verification & Fallbacks ---
-        max_score = reranked_chunks[0]["cross_score"] if reranked_chunks else -99.0
-        
-        # Calibrated Sigmoid confidence calculation mapping the Cross-Encoder score range
-        import math
-        confidence = 1.0 / (1.0 + math.exp(-0.7 * (max_score + 2.0))) if reranked_chunks else 0.0
-        
-        # Raise minimum threshold to 0.30 (approx max_score = -3.2) to ensure strict safety
-        if confidence < settings.CONFIDENCE_THRESH or not reranked_chunks:
-            answer = settings.KB_REFUSAL_MESSAGE
+        # 5. Confidence check
+        max_score = reranked[0]["cross_score"] if reranked else -99.0
+        confidence = 1.0 / (1.0 + math.exp(-0.7 * (max_score + 2.0))) if reranked else 0.0
+
+        if confidence < settings.CONFIDENCE_THRESH or not reranked:
+            refusal = settings.KB_REFUSAL_MESSAGE
             faith_res = {
                 "faithful": True,
                 "score": 1.0,
-                "verdict": "Low retrieval confidence. Refusal statement is factually faithful.",
-                "unsupported_claims": []
+                "verdict": "Low retrieval confidence — refusal is factually faithful.",
+                "unsupported_claims": [],
             }
-            res = {
-                "answer": answer,
+            result = {
+                "answer": refusal,
                 "retrieved_chunks": [],
                 "faithfulness": faith_res,
                 "confidence_score": confidence,
                 "cached": False,
-                "blocked": False
+                "blocked": False,
             }
-            query_cache.set(sanitized_query, res, self._embedder)
-            log_query(
-                query=sanitized_query,
-                retrieved_chunks=[],
-                answer=answer,
-                pre_rerank_chunks=hybrid_chunks,
-                faithfulness_res=faith_res,
-            )
-            return res
+            query_cache.set(sanitized, result, self._embedder)
+            log_query(query=sanitized, retrieved_chunks=[], answer=refusal, faithfulness_res=faith_res)
+            return result
 
-        # --- 6. Grounded Completion ---
-        active_api_key = groq_api_key or settings.GROQ_API_KEY
-        if is_valid_groq_key(active_api_key):
-            groq_client = get_groq_client(active_api_key)
-            if groq_client:
-                answer = generate_llm_completion(sanitized_query, reranked_chunks, groq_client, conversation_history=conversation_history)
-            else:
-                answer = get_mock_answer(sanitized_query, reranked_chunks)
+        # 6. Generation
+        active_key = groq_api_key or settings.GROQ_API_KEY
+        if is_valid_groq_key(active_key):
+            groq_client = get_groq_client(active_key)
+            answer = generate_llm_completion(sanitized, reranked, groq_client, conversation_history)
         else:
             groq_client = None
-            answer = get_mock_answer(sanitized_query, reranked_chunks)
+            answer = get_mock_answer(sanitized, reranked)
 
-        # --- 7. Faithfulness Auditing ---
-        faith_res = check_faithfulness(answer, reranked_chunks, groq_client)
+        # 7. Faithfulness audit
+        faith_res = check_faithfulness(answer, reranked, groq_client)
 
-        # --- 8. persistent Logging ---
+        # 8. Log + cache
         log_query(
-            query=sanitized_query,
-            retrieved_chunks=reranked_chunks,
+            query=sanitized,
+            retrieved_chunks=reranked,
             answer=answer,
             pre_rerank_chunks=hybrid_chunks,
-            faithfulness_res=faith_res
+            faithfulness_res=faith_res,
         )
 
-        # --- Save to Cache & Return ---
         result = {
             "answer": answer,
-            "retrieved_chunks": reranked_chunks,
+            "retrieved_chunks": reranked,
             "faithfulness": faith_res,
             "confidence_score": confidence,
             "cached": False,
-            "blocked": False
+            "blocked": False,
         }
-        query_cache.set(sanitized_query, result, self._embedder)
+        query_cache.set(sanitized, result, self._embedder)
         return result
 
-# Expose global instance
+
+def _blocked(reason: str) -> dict:
+    return {
+        "answer": reason,
+        "retrieved_chunks": [],
+        "faithfulness": {"faithful": True, "score": 1.0, "verdict": "Blocked.", "unsupported_claims": []},
+        "confidence_score": 0.0,
+        "cached": False,
+        "blocked": True,
+    }
+
+
+# Global singleton — initialized lazily on first query
 rag_pipeline = RAGPipeline()

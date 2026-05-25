@@ -6,7 +6,7 @@ from core.data_validation import validate_dataset
 from core.exceptions import DatasetValidationError
 from core.logger import get_logger
 
-log = get_logger("models.data")
+log = get_logger("ml.data")
 
 
 def load_dataset() -> pd.DataFrame:
